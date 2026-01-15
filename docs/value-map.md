@@ -1,13 +1,31 @@
 # Value Map
 
-Required fields. Do not proceed if any REQUIRED placeholders remain.
-
 ## Value Chain
-- Trigger: 仕様が固まり、有料検証を急いで開始したい。
-- Action: テンプレ導入→planKey設定→Checkout/Webhook動作確認。
-- Outcome: 有料検証を数日以内に開始できる。
+- Trigger: 説明や評価を求められた瞬間、または他人の Epoch を判断材料として読む必要が生じた瞬間。
+- Action: Epoch に事実を記録し、必要なときに他人の Epoch を Time Window / Read Session で読む。
+- Outcome: 解釈や評価を介さない時間の事実が判断材料として成立する。
+
+## Problem to Value to Payment Rationale
+1. 課題: 履歴が後から編集・要約・物語化される
+   価値: 履歴を不可逆な Record として保存し、削除・修正・要約を技術的に不可能にする
+   支払い理由: 編集不能であること自体に対価を払うのは合理的
+2. 課題: 語らなかったこと、選ばなかった判断が履歴に残らない
+   価値: decision_not_made / period_of_silence を正式な Record として扱う
+   支払い理由: 沈黙の欠損がないことを確認できるなら支払う合理性がある
+3. 課題: 評価・スコア・推薦によって履歴の意味が固定される
+   価値: 評価・要約・ランキング・おすすめを持たない設計
+   支払い理由: 判断前に意味を押し付けられないこと自体が信頼条件になる
+4. 課題: クライアントや表示環境によって履歴の解釈が変わる
+   価値: 真実は常にサーバ側にのみ存在し、時刻・順序・内容は一意に確定
+   支払い理由: 環境差で意味が揺れる履歴は判断材料として使えない
+5. 課題: 画像や証拠が文脈を上書きしてしまう
+   価値: 画像は Record に従属し、単体では存在できない証拠補助として扱う
+   支払い理由: 意味を語らない証拠構造が保証されているなら安心して読むために支払える
+6. 課題: 「読むこと」と「評価すること」が混同される
+   価値: 課金を「他人の Epoch を判断材料として読む行為」に限定
+   支払い理由: 歪められていない履歴にアクセスする行為そのものに対価を支払える
 
 ## Value to Metrics
-- Value statement: 課金/権限/計測の雛形で仕様から有料検証までの時間を短縮する。
-- Leading metric: 週次の checkout_started 件数。
-- Lagging metric: checkout_completed と entitlement_granted の完了率。
+- Value statement: 判断と行為を不可逆に記録し、読む側の不確実性を除去する。
+- Leading metric: 初回 record 確定成功率。
+- Lagging metric: 課金後の翌日再訪率と再課金発生率。

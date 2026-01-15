@@ -1,12 +1,16 @@
 # Paid Users Insights
 
-Required fields. Do not proceed if any REQUIRED placeholders remain.
-
 ## Hypotheses
-- 課金導入の手間が減れば、有料検証までのリードタイムが短縮される。
+- 支払いが合理的なら、翌日再訪と自己記録の継続が一定割合で発生する。
+- 支払いが衝動ではなく価値に基づくなら、再課金が自然発生する。
+- 課金後の離脱が大きい場合、価値定義かフローのズレが起きている。
 
 ## Evidence to Collect
-- checkout_started→checkout_completed の転換率と、初回セットアップ完了までの時間。
+- 観測対象: 他人の Epoch に対して Read Session または Time Window を購入したユーザー（テストアカウントは除外）。
+- 観測期間: 支払い当日 / 翌日 / 7日後 / 30日後。
+- 行動指標: 閲覧開始、一定時間の閲覧継続、翌日再訪、自己記録、再閲覧要求、再課金。
 
 ## Action from Insights
-- セットアップ導線を短縮し、planKey設定とWebhook確認のガイドを改善する。
+- 失敗条件（翌日再訪や再課金が極端に低い）が成立した場合、価格調整ではなく価値定義ドキュメントに戻る。
+- 改善は「意味の追加」ではなく「誤操作の削減」に限定する。
+- アンケートや主観評価の収集は行わない。

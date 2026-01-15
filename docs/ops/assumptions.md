@@ -1,12 +1,41 @@
 # Assumptions
 
-Required fields. Do not proceed if any REQUIRED placeholders remain.
+## Availability
+- 書き込み API は高優先度、閲覧 API は次点。
+- 説明ページや補助 UI は低優先度。
+- 一時的に読めなくなることは許容されるが、書けなくなる時間は最小化する。
 
-## Product Assumptions
-- 仕様が揃っており、早期に有料検証を開始したいチームがいる。
+## Durability
+- EpochRecord は不可逆ストレージに保存し、多重化する。
+- バックアップも追記型。
+- 復元時に record_hash が一致しない場合は公開しない。
 
-## Technical Assumptions
-- Stripe webhook が利用でき、APP_BASE_URL と userId が取得可能。
+## Consistency
+- 時間順序は絶対。
+- 部分的な成功は存在しない。
+- 確定失敗時は Record を生成しない。
+- 再試行は新しい記録としてのみ許可。
 
-## Risky Assumptions
-- Webhook の到達率と metadata(planKey/userId) の付与が安定している。
+## Incident Behavior
+- 書き込み不可の場合は明示的に拒否。
+- オフライン確定は絶対に行わない。
+- 成功したか不明な状態を作らない。
+
+## Support Scope
+- 提供するサポート: ログイン不能時のメール復旧案内、明確な不具合の調査。
+- 提供しないサポート: Record の削除・修正・非表示依頼、意味解釈や評価相談。
+
+## Operator Access
+- 運営者に許可されること: インフラ運用、障害対応、監査ログの確認。
+- 禁止されること: Record の削除、Record の修正、特定ユーザーへの例外対応。
+- 運営者操作もすべて監査ログに残る。
+
+## Security
+- 認証は Passkey 優先。
+- 認証復旧は履歴として記録。
+- 内部アクセスは最小権限。
+- 侵害発生時は事実と影響範囲を時刻付きで公開する。
+
+## Legal Boundary
+- Epoch が負う責任: 記録した事実を改変しないこと、保存したデータを消さないこと。
+- Epoch が負わない責任: 履歴の解釈、判断結果、第三者間の合意や不合意。

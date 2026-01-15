@@ -1,16 +1,23 @@
 # Done
 
-Required fields. Do not proceed if any REQUIRED placeholders remain.
-
 ## Definition of Done
-- Deploy is NOT done by itself. Add measurable outcomes.
-- Done is only true when billing and continued usage are verified.
+Epoch v1 は「思想・構造・実装・運用が一貫して成立している」ことが条件。
+機能が動いているだけでは Done とみなさない。
 
 ## Done Checklist
-- Deploy outcome: 本番URLでサインアップ→/plans→Checkout開始までを実ユーザーが完了できる。
-- Billing outcome: checkout.session.completed 受信後に entitlement_granted が記録される。
-- Continued usage outcome: 有料ユーザーが翌週に再訪し、/dashboard を再度利用している。
+- 不可逆 Record 書き込みが稼働している。
+- Web / Mobile が同一仕様で動作している。
+- オフラインは draft のみで、確定は常にオンライン。
+- 画像添付が Record に従属して機能している。
+- プロフィール画像が表層データとして分離されている。
+- 読み取り課金が機能している（Time Window / Read Session）。
+- 削除／編集 API が存在しない。
+- 運営者でも履歴改変が不可能。
+- 支払いユーザーの一定割合が翌日も再訪している。
+- 支払い後も自己 Epoch の記録が継続している。
+- 再課金が自然発生している。
+- 課金が「必要なときに選ばれている」状態になっている。
 
 ## Non-Negotiables
-- "Deployed" is not "Done".
-- "Paid" is not "Done" without entitlement updates and usage.
+- 「Deployed」だけでは Done ではない。
+- 課金が行われても、再訪と記録継続が無い限り Done ではない。

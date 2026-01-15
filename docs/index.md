@@ -5,6 +5,7 @@ This is a gate, not reference material. Required fields must be completed before
 ## How to Use
 - Read the docs in the order listed in README.
 - Replace all REQUIRED placeholders in required sections.
+- Epoch 技術仕様書は docs/spec/technical-spec.md を参照する。
 - Run `node scripts/verify.mjs` until it prints OK.
 
 ## Rules

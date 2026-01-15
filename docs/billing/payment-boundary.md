@@ -1,32 +1,28 @@
 # Payment Boundary Definition
 
-必須項目: 以下の REQUIRED プレースホルダを埋めること。
-未記入のまま次工程へ進まない。
-
 ## free_cannot_do
-自分のユーザーに対して「支払い完了→権限付与→利用開始」までを自動で通せない。
-（無料状態で「できないこと」＝不確実性が残ること）
+他人の Epoch を判断材料として読むこと。
+時間全体を横断して他人の履歴を把握すること。
 
 ## payment_trigger
-有料検証を今すぐ始める必要があり、決済/権限/計測の実装工数を削減できると納得した時。
-（ユーザーが支払いを決断するトリガー：恐怖訴求ではなく合理）
+他人の Epoch を、歪められていない履歴として読む必要が生じた瞬間。
+（編集不能・評価なし・沈黙欠損なし・時間順序絶対が確定する）
 
 ## plan_key_1
-starter
-（プラン識別子1：例 basic / pro など）
+time_window
 
 ## plan_1_entitlements
-core_workflow, projects:3
-（plan_key_1 で付与される entitlement scope 一覧）
+read_other_epoch:time_window
 
 ## plan_key_2
-pro
-（プラン識別子2）
+read_session
 
 ## plan_2_entitlements
-core_workflow, priority_workflow, projects:50
-（plan_key_2 で付与される entitlement scope 一覧）
+read_other_epoch:session
 
 ## Notes
-- 料金表は書かない。価格は seller が /admin/pricing で後から決める。
-- 価格変更は「新しい Stripe Price を作成して Active を切替」のみ許可。
+- 課金は「他人の Epoch を判断材料として読む行為」にのみ紐づく。
+- Record 単体課金、評価連動課金は禁止。
+- 課金後でも評価・要約・保存・ランキングは不可。
+- 課金停止後も書き込みと自己閲覧は継続可能。
+- 料金表は書かない。価格は後から設定する。

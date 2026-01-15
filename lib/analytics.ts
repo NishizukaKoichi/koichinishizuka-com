@@ -3,7 +3,11 @@ export type AnalyticsEventName =
   | "checkout_completed"
   | "entitlement_granted"
   | "payment_failed"
-  | "entitlement_revoked";
+  | "entitlement_revoked"
+  | "time_window_started"
+  | "time_window_ended"
+  | "read_session_started"
+  | "read_session_ended";
 
 export type AnalyticsProps = Record<string, unknown>;
 

@@ -14,17 +14,15 @@ export const billingConfig = {
   cancelPath: "/plans",
   plans: [
     {
-      planKey: "starter",
-      displayName: "Starter",
-      features: ["Core workflow access", "Basic usage limits"],
-      limits: { projects: 3 },
+      planKey: "time_window",
+      displayName: "Time Window",
+      features: ["Read other Epoch within a specific time window"],
       requireEntitlement: true,
     },
     {
-      planKey: "pro",
-      displayName: "Pro",
-      features: ["Everything in Starter", "Higher limits", "Priority workflow"],
-      limits: { projects: 50 },
+      planKey: "read_session",
+      displayName: "Read Session",
+      features: ["Read other Epoch for a session"],
       requireEntitlement: true,
     },
   ],

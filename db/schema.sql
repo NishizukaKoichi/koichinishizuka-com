@@ -124,3 +124,18 @@ CREATE INDEX read_grants_viewer_target_idx
 
 CREATE INDEX read_grants_active_idx
   ON read_grants(viewer_user_id, target_user_id, ended_at);
+
+CREATE TABLE audit_logs (
+  audit_id TEXT PRIMARY KEY,
+  event_name TEXT NOT NULL,
+  actor_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+  target_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX audit_logs_actor_idx
+  ON audit_logs(actor_user_id, created_at DESC);
+
+CREATE INDEX audit_logs_target_idx
+  ON audit_logs(target_user_id, created_at DESC);

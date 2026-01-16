@@ -58,10 +58,18 @@ export async function POST(request: Request) {
 
     if (type === "time_window") {
       track("time_window_started", { viewerId, targetUserId, grantId: grant.grantId });
-      audit("time_window_started", { viewerId, targetUserId, grantId: grant.grantId });
+      await audit("time_window_started", {
+        viewerId,
+        targetUserId,
+        grantId: grant.grantId,
+      });
     } else {
       track("read_session_started", { viewerId, targetUserId, grantId: grant.grantId });
-      audit("read_session_started", { viewerId, targetUserId, grantId: grant.grantId });
+      await audit("read_session_started", {
+        viewerId,
+        targetUserId,
+        grantId: grant.grantId,
+      });
     }
 
     return NextResponse.json({ grant });

@@ -24,10 +24,10 @@ export async function POST(request: Request) {
 
   if (grant.type === "time_window") {
     track("time_window_ended", { viewerId, grantId });
-    audit("time_window_ended", { viewerId, grantId });
+    await audit("time_window_ended", { viewerId, grantId });
   } else {
     track("read_session_ended", { viewerId, grantId });
-    audit("read_session_ended", { viewerId, grantId });
+    await audit("read_session_ended", { viewerId, grantId });
   }
 
   return NextResponse.json({ grant });

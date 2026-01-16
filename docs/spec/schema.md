@@ -62,6 +62,14 @@ Constraints
 - starts_at / ends_at (read_session only)
 - ended_at (explicit end)
 
+### AuditLog
+- audit_id (UUIDv7)
+- event_name
+- actor_user_id (nullable)
+- target_user_id (nullable)
+- metadata (JSON)
+- created_at
+
 ## Notes
 - Entitlements は実行ゲートの唯一の真実点。
 - 課金情報は履歴の意味付けに使わない。

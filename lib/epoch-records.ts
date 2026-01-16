@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { query, transaction } from "./db";
 import { uuidV7Like } from "./ids";
 
 export type Visibility = "private" | "scout_visible" | "public";
@@ -186,6 +187,66 @@ function storeRecord(record: EpochRecord): void {
   epochStore.attachmentsByRecord.set(record.recordId, record.attachments);
 }
 
+async function persistRecord(record: EpochRecord): Promise<void> {
+  await query(
+    `INSERT INTO epoch_records (
+       record_id,
+       user_id,
+       recorded_at,
+       record_type,
+       payload,
+       prev_hash,
+       record_hash,
+       visibility
+     ) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8)`,
+    [
+      record.recordId,
+      record.userId,
+      record.recordedAt,
+      record.recordType,
+      JSON.stringify(record.payload),
+      record.prevHash,
+      record.recordHash,
+      record.visibility,
+    ]
+  );
+}
+
+async function persistAttachments(record: EpochRecord): Promise<void> {
+  if (record.attachments.length === 0) {
+    return;
+  }
+
+  const values: unknown[] = [];
+  const placeholders = record.attachments.map((attachment, index) => {
+    const base = index * 4;
+    values.push(
+      uuidV7Like(),
+      record.recordId,
+      attachment.attachmentHash,
+      attachment.storagePointer
+    );
+    return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4})`;
+  });
+
+  await query(
+    `INSERT INTO epoch_attachments (
+       attachment_id,
+       record_id,
+       attachment_hash,
+       storage_pointer
+     ) VALUES ${placeholders.join(", ")}`,
+    values
+  );
+}
+
+async function persistRecordWithAttachments(record: EpochRecord): Promise<void> {
+  await transaction(async () => {
+    await persistRecord(record);
+    await persistAttachments(record);
+  });
+}
+
 function applyVisibility(record: EpochRecord): EpochRecord {
   const override = epochStore.visibilityOverrides.get(record.recordId);
   if (!override) {
@@ -196,6 +257,7 @@ function applyVisibility(record: EpochRecord): EpochRecord {
 
 export async function createEpochRecord(input: EpochRecordInput): Promise<EpochRecord> {
   const record = buildRecord(input);
+  await persistRecordWithAttachments(record);
   storeRecord(record);
   return record;
 }

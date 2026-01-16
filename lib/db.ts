@@ -25,3 +25,16 @@ export async function query<T extends DbRow>(
   const result = await client.query<T>(sql, params);
   return result.rows;
 }
+
+export async function transaction<T>(fn: () => Promise<T>): Promise<T> {
+  const client = getDbClient();
+  await client.query("BEGIN");
+  try {
+    const result = await fn();
+    await client.query("COMMIT");
+    return result;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  }
+}

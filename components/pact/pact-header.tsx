@@ -1,6 +1,8 @@
 "use client"
 
 import Link from "next/link"
+
+import { useRouter } from "next/navigation"
 import { usePathname } from "next/navigation"
 import { FileSignature, LayoutDashboard, Users, Settings, BarChart3, FileText, ChevronLeft, Database, GitBranch, User, Shield } from "@/components/icons"
 import { Button } from "@/components/ui/button"
@@ -28,24 +30,26 @@ function isNavActive(pathname: string, href: string): boolean {
 
 export function PactHeader() {
   const pathname = usePathname()
+  const router = useRouter()
   const { t } = useI18n()
   const { isLoggedIn } = useAuth()
   
-  // Check if we're in a detail page that needs a back button
-  const isDetailPage = pathname.match(/\/pact\/(employees|reports)\/[^/]+/)
-  
+  const isHomePage = pathname === "/pact"
+  const showBackButton = !isHomePage
+  const isDetailPage = pathname !== "/pact" && pathname !== "/pact/landing" // Declare isDetailPage variable
+
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="mx-auto max-w-4xl">
         {/* Top bar with logo */}
         <div className="flex h-12 items-center justify-between px-4">
           <div className="flex items-center gap-2">
-            {isDetailPage && (
+            {showBackButton && (
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                onClick={() => window.history.back()}
+                onClick={() => router.back()}
               >
                 <ChevronLeft className="h-5 w-5" />
               </Button>

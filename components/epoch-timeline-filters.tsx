@@ -186,6 +186,7 @@ export function EpochTimelineFilters({ onFilterChange, totalCount, filteredCount
                   mode="single"
                   selected={dateFrom}
                   onSelect={handleDateFromChange}
+                  locale={ja}
                 />
               </PopoverContent>
             </Popover>
@@ -208,6 +209,7 @@ export function EpochTimelineFilters({ onFilterChange, totalCount, filteredCount
                   mode="single"
                   selected={dateTo}
                   onSelect={handleDateToChange}
+                  locale={ja}
                 />
               </PopoverContent>
             </Popover>

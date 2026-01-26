@@ -54,6 +54,18 @@ const allProducts = [
     hasValue: false,
     hasMvp: false,
   },
+  {
+    id: "magicspell",
+    nameKey: "product.magicspell.name",
+    definitionKey: "product.magicspell.definition",
+    handlesKey: "product.magicspell.handles",
+    notHandlesKey: "product.magicspell.not_handles",
+    status: "draft" as const,
+    hasSpec: true,
+    hasValue: false,
+    hasMvp: false,
+    specHref: "/magicspell/landing",
+  },
 ]
 
 export default function LibraryPage() {

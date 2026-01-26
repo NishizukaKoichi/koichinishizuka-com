@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu"
-import { ChevronDown, Clock, Shield, Sparkles, FileSignature } from "@/components/icons"
+import { ChevronDown, Clock, Shield, Sparkles, FileSignature, Wand2 } from "@/components/icons"
 import { EpochLanguageSelector } from "@/components/epoch-language-selector"
 import { useAuth } from "@/lib/auth/context"
 
@@ -58,6 +58,16 @@ const products = [
     disabled: false,
     productType: "pact",
   },
+  {
+    id: "magicspell",
+    name: "MagicSpell",
+    description: "権利付与・配布制御",
+    landingHref: "/magicspell/landing",
+    appHref: "/magicspell",
+    icon: Wand2,
+    disabled: false,
+    productType: "magicspell",
+  },
 ]
 
 export function GlobalNav() {
@@ -82,6 +92,8 @@ export function GlobalNav() {
   const isSigilActive = pathname.startsWith("/sigil")
   
   const isPactActive = pathname.startsWith("/pact")
+  
+  const isMagicSpellActive = pathname.startsWith("/magicspell")
   
   const isSiteActive = pathname.startsWith("/site")
 
@@ -112,7 +124,7 @@ export function GlobalNav() {
             
             {products.map((product) => {
               const Icon = product.icon
-              const isCurrent = product.productType === "epoch" ? isEpochActive : product.productType === "talisman" ? isTalismanActive : product.productType === "sigil" ? isSigilActive : product.productType === "pact" ? isPactActive : false
+              const isCurrent = product.productType === "epoch" ? isEpochActive : product.productType === "talisman" ? isTalismanActive : product.productType === "sigil" ? isSigilActive : product.productType === "pact" ? isPactActive : product.productType === "magicspell" ? isMagicSpellActive : false
               
               if (product.disabled) {
                 return (

@@ -1,5 +1,4 @@
 @import "tailwindcss";
-
 :root {
   --background: oklch(0.08 0 0);
   --foreground: oklch(0.92 0 0);
@@ -30,6 +29,8 @@
   --sigil-secondary: oklch(0.5 0.1 85);
   --pact-primary: oklch(0.65 0.12 280);
   --pact-secondary: oklch(0.45 0.08 280);
+  --magicspell-primary: oklch(0.7 0.18 145);
+  --magicspell-secondary: oklch(0.5 0.12 145);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
@@ -93,6 +94,8 @@
   --color-sigil-secondary: var(--sigil-secondary);
   --color-pact-primary: var(--pact-primary);
   --color-pact-secondary: var(--pact-secondary);
+  --color-magicspell-primary: var(--magicspell-primary);
+  --color-magicspell-secondary: var(--magicspell-secondary);
 }
 
 @layer base {

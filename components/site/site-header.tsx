@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils"
 
 const navItems = [
   { key: "site.nav.library", href: "/site/library" },
+  { key: "site.nav.developers", href: "/site/developers" },
   { key: "site.nav.notes", href: "/site/notes" },
   { key: "site.nav.about", href: "/site/about" },
   { key: "site.nav.contact", href: "/site/contact" },

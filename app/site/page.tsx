@@ -58,6 +58,19 @@ const featuredProducts = [
     specHref: "/pact/landing",
     mvpHref: "/pact",
   },
+  {
+    id: "magicspell",
+    nameKey: "product.magicspell.name",
+    definitionKey: "product.magicspell.definition",
+    handlesKey: "product.magicspell.handles",
+    notHandlesKey: "product.magicspell.not_handles",
+    status: "draft" as const,
+    hasSpec: true,
+    hasValue: false,
+    hasMvp: true,
+    specHref: "/magicspell/landing",
+    mvpHref: "/magicspell",
+  },
 ]
 
 // Recent notes (placeholder data)

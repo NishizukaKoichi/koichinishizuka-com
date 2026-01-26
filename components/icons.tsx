@@ -3110,3 +3110,52 @@ export const Zap = createIcon("Zap", [
     }
   ]
 ])
+
+export const ArrowUpRight = createIcon("ArrowUpRight", [
+  ["path", { d: "M7 7h10v10", key: "1tivn9" }],
+  ["path", { d: "M7 17 17 7", key: "1vkiza" }]
+])
+
+export const Package = createIcon("Package", [
+  [
+    "path",
+    {
+      d: "M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z",
+      key: "1a0edw"
+    }
+  ],
+  ["path", { d: "M12 22V12", key: "d0xqtd" }],
+  ["path", { d: "m3.3 7 7.703 4.734a2 2 0 0 0 1.994 0L20.7 7", key: "yx3hmr" }],
+  ["path", { d: "m7.5 4.27 9 5.15", key: "1c824w" }]
+])
+
+export const Play = createIcon("Play", [
+  ["polygon", { points: "6 3 20 12 6 21 6 3", key: "1oa8hb" }]
+])
+
+export const Terminal = createIcon("Terminal", [
+  ["polyline", { points: "4 17 10 11 4 5", key: "akl6gq" }],
+  ["line", { x1: "12", x2: "20", y1: "19", y2: "19", key: "q2wloq" }]
+])
+
+export const Unlock = createIcon("Unlock", [
+  ["rect", { width: "18", height: "11", x: "3", y: "11", rx: "2", ry: "2", key: "1w4ew1" }],
+  ["path", { d: "M7 11V7a5 5 0 0 1 9.9-1", key: "1mm8w8" }]
+])
+
+export const Wand2 = createIcon("Wand2", [
+  [
+    "path",
+    {
+      d: "m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72",
+      key: "ul74o6"
+    }
+  ],
+  ["path", { d: "m14 7 3 3", key: "1r5n42" }],
+  ["path", { d: "M5 6v4", key: "ilb8ba" }],
+  ["path", { d: "M19 14v4", key: "blhpug" }],
+  ["path", { d: "M10 2v2", key: "7u0qdc" }],
+  ["path", { d: "M7 8H3", key: "zfb6yr" }],
+  ["path", { d: "M21 16h-4", key: "1cnmox" }],
+  ["path", { d: "M11 3H9", key: "1obp7u" }]
+])

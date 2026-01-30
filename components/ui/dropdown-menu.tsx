@@ -35,16 +35,47 @@ export function DropdownMenuContent({ className, align, ...props }: React.HTMLAt
   )
 }
 
-export function DropdownMenuItem({ className, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+export function DropdownMenuItem({
+  className,
+  asChild,
+  onClick,
+  disabled,
+  type: _type,
+  children,
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { asChild?: boolean }) {
   const context = React.useContext(DropdownContext)
+  const handleClick = (event: React.MouseEvent<HTMLElement>) => {
+    if (disabled) {
+      event.preventDefault()
+      return
+    }
+    onClick?.(event as React.MouseEvent<HTMLButtonElement>)
+    context?.setOpen(false)
+  }
+
+  if (asChild && React.isValidElement(children)) {
+    return React.cloneElement(children, {
+      onClick: handleClick,
+      className: cn(
+        "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-secondary",
+        className,
+        children.props?.className
+      ),
+      "aria-disabled": disabled || undefined,
+      ...props,
+    })
+  }
+
   return (
     <button
       type="button"
-      className={cn("flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-secondary", className)}
-      onClick={(event) => {
-        props.onClick?.(event)
-        context?.setOpen(false)
-      }}
+      disabled={disabled}
+      className={cn(
+        "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-secondary",
+        className
+      )}
+      onClick={handleClick}
       {...props}
     />
   )

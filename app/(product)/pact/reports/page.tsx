@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { FileText, TrendingUp, Minus, LogOut, Eye, Download, Filter, Search, Plus } from "@/components/icons"
 import { Card, CardContent } from "@/components/ui/card"
@@ -15,50 +15,37 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useI18n } from "@/lib/i18n/context"
+import { useAuth } from "@/lib/auth/context"
 
-// Mock reports data
-const mockReports = [
-  {
-    id: "report-1",
-    type: "salary_adjustment" as const,
-    employeeName: "John Smith",
-    employeeId: "emp-1",
-    role: "Senior Engineer",
-    generatedAt: "2026-01-22",
-    status: "generated" as const,
-    summary: "上位達成閾値を3ヶ月連続で達成。報酬レンジの切り替え対象。",
-  },
-  {
-    id: "report-2",
-    type: "role_continuation" as const,
-    employeeName: "Sarah Johnson",
-    employeeId: "emp-2",
-    role: "Product Manager",
-    generatedAt: "2026-01-20",
-    status: "sent" as const,
-    summary: "すべての指標が最低維持閾値を上回り、役割を維持。",
-  },
-  {
-    id: "report-3",
-    type: "pact_report" as const,
-    employeeName: "Alex Thompson",
-    employeeId: "emp-7",
-    role: "Marketing Specialist",
-    generatedAt: "2026-01-15",
-    status: "sent" as const,
-    summary: "危機状態が90日継続。契約終了レポートを生成。",
-  },
-  {
-    id: "report-4",
-    type: "salary_adjustment" as const,
-    employeeName: "Lisa Anderson",
-    employeeId: "emp-6",
-    role: "Marketing Lead",
-    generatedAt: "2026-01-10",
-    status: "sent" as const,
-    summary: "上位達成閾値を達成。報酬レンジ切り替え完了。",
-  },
-]
+type PactReport = {
+  reportId: string
+  employeeId: string
+  periodStart: string
+  periodEnd: string
+  content: Record<string, unknown>
+  createdAt: string
+  deliveredAt?: string
+}
+
+type Employee = {
+  employeeId: string
+  displayName: string
+  roleId: string
+}
+
+type ReportType = "salary_adjustment" | "role_continuation" | "pact_report"
+type ReportStatus = "generated" | "sent" | "archived"
+
+type ReportView = {
+  id: string
+  type: ReportType
+  employeeName: string
+  employeeId: string
+  role: string
+  generatedAt: string
+  status: ReportStatus
+  summary: string
+}
 
 const reportTypeConfig = {
   salary_adjustment: { 
@@ -89,14 +76,114 @@ const statusConfig = {
 
 export default function PactReportsPage() {
   const { t } = useI18n()
+  const { userId } = useAuth()
   const [searchQuery, setSearchQuery] = useState("")
   const [typeFilter, setTypeFilter] = useState("all")
+  const [reports, setReports] = useState<ReportView[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const filteredReports = mockReports.filter(report => {
-    const matchesSearch = report.employeeName.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesType = typeFilter === "all" || report.type === typeFilter
-    return matchesSearch && matchesType
-  })
+  useEffect(() => {
+    if (!userId) {
+      setError("ログインが必要です")
+      setLoading(false)
+      return
+    }
+
+    let cancelled = false
+
+    const load = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const headers = { "x-user-id": userId }
+        const [reportRes, employeeRes] = await Promise.all([
+          fetch("/api/v1/pact/reports", { headers }),
+          fetch("/api/v1/pact/employees", { headers }),
+        ])
+
+        if (!reportRes.ok) {
+          throw new Error("レポートの取得に失敗しました")
+        }
+        if (!employeeRes.ok) {
+          throw new Error("被雇用者の取得に失敗しました")
+        }
+
+        const reportData = (await reportRes.json()) as { reports: PactReport[] }
+        const employeeData = (await employeeRes.json()) as { employees: Employee[] }
+        const employeeMap = new Map(
+          (employeeData.employees ?? []).map((employee) => [
+            employee.employeeId,
+            employee,
+          ])
+        )
+
+        const mapped: ReportView[] = (reportData.reports ?? []).map((report) => {
+          const content = report.content ?? {}
+          const latestState =
+            typeof content.latestState === "string" ? content.latestState : "stable"
+          const type: ReportType =
+            latestState === "growth"
+              ? "salary_adjustment"
+              : latestState === "exit"
+              ? "pact_report"
+              : "role_continuation"
+          const summary =
+            type === "salary_adjustment"
+              ? "上位達成閾値に到達。報酬レンジ切り替え対象。"
+              : type === "pact_report"
+              ? "危機状態が継続。契約終了レポート。"
+              : "最低維持閾値を満たし役割を維持。"
+
+          const employee = employeeMap.get(report.employeeId)
+          const displayName =
+            typeof content.displayName === "string"
+              ? content.displayName
+              : employee?.displayName ?? report.employeeId
+          const role =
+            typeof content.roleId === "string"
+              ? content.roleId
+              : employee?.roleId ?? "role:unknown"
+
+          return {
+            id: report.reportId,
+            type,
+            employeeName: displayName,
+            employeeId: report.employeeId,
+            role,
+            generatedAt: report.createdAt.split("T")[0],
+            status: report.deliveredAt ? "sent" : "generated",
+            summary,
+          }
+        })
+
+        if (!cancelled) {
+          setReports(mapped)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "データ取得に失敗しました")
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [userId])
+
+  const filteredReports = useMemo(() => {
+    return reports.filter((report) => {
+      const matchesSearch = report.employeeName.toLowerCase().includes(searchQuery.toLowerCase())
+      const matchesType = typeFilter === "all" || report.type === typeFilter
+      return matchesSearch && matchesType
+    })
+  }, [reports, searchQuery, typeFilter])
 
   return (
     <div className="space-y-6">
@@ -144,64 +231,68 @@ export default function PactReportsPage() {
       </div>
 
       {/* Reports List */}
-      <div className="space-y-3">
-        {filteredReports.map((report) => {
-          const typeConfig = reportTypeConfig[report.type]
-          const Icon = typeConfig.icon
-          const status = statusConfig[report.status]
-          
-          return (
-            <Card key={report.id} className="hover:border-violet-500/50 transition-colors">
-              <CardContent className="p-4">
-                <div className="flex items-start gap-4">
-                  {/* Type indicator */}
-                  <div className={`p-2 rounded-md ${typeConfig.bg} shrink-0`}>
-                    <Icon className={`h-5 w-5 ${typeConfig.color}`} />
-                  </div>
-                  
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="font-medium text-foreground">{typeConfig.label}</span>
-                      <Badge variant="secondary" className={status.color}>
-                        {status.label}
-                      </Badge>
+      {error ? (
+        <div className="text-sm text-red-500">{error}</div>
+      ) : (
+        <div className="space-y-3">
+          {filteredReports.map((report) => {
+            const typeConfig = reportTypeConfig[report.type]
+            const Icon = typeConfig.icon
+            const status = statusConfig[report.status]
+            
+            return (
+              <Card key={report.id} className="hover:border-violet-500/50 transition-colors">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-4">
+                    {/* Type indicator */}
+                    <div className={`p-2 rounded-md ${typeConfig.bg} shrink-0`}>
+                      <Icon className={`h-5 w-5 ${typeConfig.color}`} />
                     </div>
-                    <p className="text-sm text-muted-foreground mb-1">
-                      {report.employeeName} · {report.role}
-                    </p>
-                    <p className="text-xs text-muted-foreground line-clamp-1">
-                      {report.summary}
-                    </p>
-                  </div>
-                  
-                  {/* Date */}
-                  <div className="text-right shrink-0">
-                    <p className="text-xs text-muted-foreground">生成日</p>
-                    <p className="text-sm">{report.generatedAt}</p>
-                  </div>
-                  
-                  {/* Actions */}
-                  <div className="flex items-center gap-2">
-                    <Link href={`/pact/reports/${report.id}`}>
+                    
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="font-medium text-foreground">{typeConfig.label}</span>
+                        <Badge variant="secondary" className={status.color}>
+                          {status.label}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-1">
+                        {report.employeeName} · {report.role}
+                      </p>
+                      <p className="text-xs text-muted-foreground line-clamp-1">
+                        {report.summary}
+                      </p>
+                    </div>
+                    
+                    {/* Date */}
+                    <div className="text-right shrink-0">
+                      <p className="text-xs text-muted-foreground">生成日</p>
+                      <p className="text-sm">{report.generatedAt}</p>
+                    </div>
+                    
+                    {/* Actions */}
+                    <div className="flex items-center gap-2">
+                      <Link href={`/pact/reports/${report.id}`}>
+                        <Button variant="ghost" size="icon">
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </Link>
                       <Button variant="ghost" size="icon">
-                        <Eye className="h-4 w-4" />
+                        <Download className="h-4 w-4" />
                       </Button>
-                    </Link>
-                    <Button variant="ghost" size="icon">
-                      <Download className="h-4 w-4" />
-                    </Button>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
 
       {filteredReports.length === 0 && (
         <div className="text-center py-12 text-muted-foreground">
-          該当するレポートが見つかりません
+          {loading ? "読み込み中..." : "該当するレポートが見つかりません"}
         </div>
       )}
 

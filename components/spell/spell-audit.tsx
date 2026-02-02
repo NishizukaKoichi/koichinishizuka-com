@@ -1,13 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   FileText,
   Search,
   Filter,
   Shield,
-  Download,
-  Package,
   Webhook,
   RefreshCw,
   User,
@@ -28,145 +26,39 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useI18n } from "@/lib/i18n/context"
 
 type AuditEvent = {
-  id: string
-  event_type: string
-  actor: string
-  actor_type: "user" | "system" | "webhook"
-  target_type: string
-  target_id: string
-  details: Record<string, unknown>
-  timestamp: string
+  auditId: string
+  eventName: string
+  actorId?: string
+  targetId?: string
+  metadata: Record<string, unknown>
+  createdAt: string
 }
 
 type LedgerEntry = {
-  id: string
-  stripe_event_id: string
-  event_type: string
-  processed_at: string
-  idempotency_key: string
-  status: "processed" | "duplicate" | "failed"
-  payload_summary: string
+  stripeEventId: string
+  payloadHash: string
+  receivedAt: string
+  processedAt?: string
 }
 
-const mockAuditEvents: AuditEvent[] = [
-  {
-    id: "aud_001",
-    event_type: "entitlement.granted",
-    actor: "stripe_webhook",
-    actor_type: "webhook",
-    target_type: "entitlement",
-    target_id: "ent_001",
-    details: { user_id: "user_abc123", product_id: "prod_001" },
-    timestamp: "2026-01-25T10:30:00Z",
-  },
-  {
-    id: "aud_002",
-    event_type: "entitlement.revoked",
-    actor: "admin@example.com",
-    actor_type: "user",
-    target_type: "entitlement",
-    target_id: "ent_005",
-    details: { user_id: "user_mno345", reason: "subscription_cancelled" },
-    timestamp: "2026-01-25T10:25:00Z",
-  },
-  {
-    id: "aud_003",
-    event_type: "distribution.downloaded",
-    actor: "user_def456",
-    actor_type: "user",
-    target_type: "distribution",
-    target_id: "dist_001",
-    details: { file_name: "cli-tool-v2.1.0-darwin-arm64.tar.gz" },
-    timestamp: "2026-01-25T10:20:00Z",
-  },
-  {
-    id: "aud_004",
-    event_type: "product.created",
-    actor: "admin@example.com",
-    actor_type: "user",
-    target_type: "product",
-    target_id: "prod_003",
-    details: { name: "CLI Tool Lifetime", sku: "CLI_LIFETIME" },
-    timestamp: "2026-01-25T10:15:00Z",
-  },
-  {
-    id: "aud_005",
-    event_type: "reconcile.executed",
-    actor: "admin@example.com",
-    actor_type: "user",
-    target_type: "system",
-    target_id: "reconcile_001",
-    details: { affected_entitlements: 3 },
-    timestamp: "2026-01-25T10:10:00Z",
-  },
-  {
-    id: "aud_006",
-    event_type: "webhook.received",
-    actor: "stripe",
-    actor_type: "webhook",
-    target_type: "webhook",
-    target_id: "evt_abc123",
-    details: { type: "checkout.session.completed" },
-    timestamp: "2026-01-25T10:05:00Z",
-  },
-]
-
-const mockLedgerEntries: LedgerEntry[] = [
-  {
-    id: "led_001",
-    stripe_event_id: "evt_1abc2def3ghi",
-    event_type: "checkout.session.completed",
-    processed_at: "2026-01-25T10:30:00Z",
-    idempotency_key: "evt_1abc2def3ghi",
-    status: "processed",
-    payload_summary: "customer: cus_xyz, amount: ¥2,980",
-  },
-  {
-    id: "led_002",
-    stripe_event_id: "evt_2abc3def4ghi",
-    event_type: "customer.subscription.updated",
-    processed_at: "2026-01-25T10:25:00Z",
-    idempotency_key: "evt_2abc3def4ghi",
-    status: "processed",
-    payload_summary: "subscription: sub_abc, status: active",
-  },
-  {
-    id: "led_003",
-    stripe_event_id: "evt_3abc4def5ghi",
-    event_type: "customer.subscription.deleted",
-    processed_at: "2026-01-25T10:20:00Z",
-    idempotency_key: "evt_3abc4def5ghi",
-    status: "processed",
-    payload_summary: "subscription: sub_def, cancellation_reason: user_request",
-  },
-  {
-    id: "led_004",
-    stripe_event_id: "evt_1abc2def3ghi",
-    event_type: "checkout.session.completed",
-    processed_at: "2026-01-25T10:30:01Z",
-    idempotency_key: "evt_1abc2def3ghi",
-    status: "duplicate",
-    payload_summary: "Duplicate event, skipped",
-  },
-  {
-    id: "led_005",
-    stripe_event_id: "evt_4abc5def6ghi",
-    event_type: "invoice.payment_failed",
-    processed_at: "2026-01-25T10:15:00Z",
-    idempotency_key: "evt_4abc5def6ghi",
-    status: "processed",
-    payload_summary: "invoice: in_xyz, reason: card_declined",
-  },
-]
-
 const eventTypeIcons: Record<string, typeof Shield> = {
-  "entitlement.granted": Shield,
-  "entitlement.revoked": Shield,
-  "distribution.downloaded": Download,
-  "product.created": Package,
-  "product.updated": Package,
-  "reconcile.executed": RefreshCw,
-  "webhook.received": Webhook,
+  entitlement_granted: Shield,
+  entitlement_revoked: Shield,
+  spell_created: Shield,
+  spell_status_updated: Shield,
+  scope_created: Shield,
+  stripe_event_processed: Webhook,
+  reconcile_executed: RefreshCw,
+}
+
+const eventLabels: Record<string, string> = {
+  entitlement_granted: "Entitlement付与",
+  entitlement_revoked: "Entitlement剥奪",
+  spell_created: "Spell作成",
+  spell_status_updated: "Spell状態変更",
+  scope_created: "Scope作成",
+  stripe_event_processed: "Stripeイベント処理",
+  reconcile_executed: "Reconcile実行",
 }
 
 export function SpellAudit() {
@@ -174,16 +66,63 @@ export function SpellAudit() {
   const [searchQuery, setSearchQuery] = useState("")
   const [eventFilter, setEventFilter] = useState<string>("all")
   const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set())
+  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([])
+  const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
-  const filteredAuditEvents = mockAuditEvents.filter((event) => {
-    const matchesSearch =
-      event.event_type.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.actor.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.target_id.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesFilter =
-      eventFilter === "all" || event.event_type.startsWith(eventFilter)
-    return matchesSearch && matchesFilter
-  })
+  const load = async () => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const [auditRes, ledgerRes] = await Promise.all([
+        fetch("/api/v1/spell/audit?limit=200"),
+        fetch("/api/v1/spell/ledger?limit=200"),
+      ])
+
+      if (!auditRes.ok) {
+        throw new Error("Auditログの取得に失敗しました")
+      }
+      if (!ledgerRes.ok) {
+        throw new Error("Stripeイベントの取得に失敗しました")
+      }
+
+      const auditData = (await auditRes.json()) as { audit: AuditEvent[] }
+      const ledgerData = (await ledgerRes.json()) as { entries: LedgerEntry[] }
+
+      setAuditEvents(auditData.audit ?? [])
+      setLedgerEntries(ledgerData.entries ?? [])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "データ取得に失敗しました")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void load()
+  }, [])
+
+  const eventCategory = (eventName: string) => {
+    if (eventName.startsWith("entitlement_")) return "entitlement"
+    if (eventName.startsWith("spell_")) return "spell"
+    if (eventName.startsWith("scope_")) return "scope"
+    if (eventName.startsWith("stripe_")) return "stripe"
+    if (eventName.startsWith("reconcile_")) return "reconcile"
+    return "other"
+  }
+
+  const filteredAuditEvents = useMemo(() => {
+    return auditEvents.filter((event) => {
+      const matchesSearch =
+        event.eventName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (event.actorId ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (event.targetId ?? "").toLowerCase().includes(searchQuery.toLowerCase())
+      const matchesFilter =
+        eventFilter === "all" || eventCategory(event.eventName) === eventFilter
+      return matchesSearch && matchesFilter
+    })
+  }, [auditEvents, searchQuery, eventFilter])
 
   const formatTimestamp = (dateString: string) => {
     return new Date(dateString).toLocaleString("ja-JP", {
@@ -206,81 +145,64 @@ export function SpellAudit() {
     setExpandedEvents(newExpanded)
   }
 
-  const getActorIcon = (actorType: string) => {
-    switch (actorType) {
-      case "webhook":
-        return Webhook
-      case "system":
-        return RefreshCw
-      default:
-        return User
-    }
+  const getActorLabel = (event: AuditEvent) => {
+    if (event.eventName === "stripe_event_processed") return "stripe"
+    return event.actorId ?? "system"
   }
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "processed":
-        return (
-          <Badge
-            variant="outline"
-            className="bg-spell-primary/10 text-spell-primary border-transparent"
-          >
-            処理済み
-          </Badge>
-        )
-      case "duplicate":
-        return (
-          <Badge variant="outline" className="bg-muted text-muted-foreground border-transparent">
-            重複
-          </Badge>
-        )
-      case "failed":
-        return (
-          <Badge
-            variant="outline"
-            className="bg-destructive/10 text-destructive border-transparent"
-          >
-            失敗
-          </Badge>
-        )
-      default:
-        return <Badge variant="outline">{status}</Badge>
+  const getActorIcon = (event: AuditEvent) => {
+    if (event.eventName === "stripe_event_processed") return Webhook
+    if (event.actorId) return User
+    return RefreshCw
+  }
+
+  const getStatusBadge = (processedAt?: string) => {
+    if (processedAt) {
+      return (
+        <Badge
+          variant="outline"
+          className="bg-spell-primary/10 text-spell-primary border-transparent"
+        >
+          処理済み
+        </Badge>
+      )
     }
+    return (
+      <Badge variant="outline" className="bg-muted text-muted-foreground border-transparent">
+        未処理
+      </Badge>
+    )
   }
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-light text-foreground mb-1">
-          {t("spell.audit.title")}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {t("spell.audit.desc")}
-        </p>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-light text-foreground mb-1">{t("spell.audit.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("spell.audit.desc")}</p>
+        </div>
+        <Button variant="outline" className="gap-2 bg-transparent" onClick={load}>
+          <RefreshCw className="h-4 w-4" />
+          再読み込み
+        </Button>
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="audit" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="audit" className="gap-2">
-            <FileText className="h-4 w-4" />
-            {t("spell.audit.title")}
-          </TabsTrigger>
-          <TabsTrigger value="ledger" className="gap-2">
-            <Webhook className="h-4 w-4" />
-            {t("spell.ledger.title")}
-          </TabsTrigger>
+      {error && <div className="text-sm text-destructive mb-4">{error}</div>}
+
+      <Tabs defaultValue="audit" className="space-y-4">
+        <TabsList className="bg-muted/30">
+          <TabsTrigger value="audit">監査ログ</TabsTrigger>
+          <TabsTrigger value="ledger">Stripe Ledger</TabsTrigger>
         </TabsList>
 
-        {/* Audit Log Tab */}
         <TabsContent value="audit" className="space-y-4">
-          {/* Search & Filter */}
+          {/* Filters */}
           <div className="flex items-center gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="イベント、アクター、ターゲットで検索..."
+                placeholder="検索..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
@@ -292,154 +214,159 @@ export function SpellAudit() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">すべてのイベント</SelectItem>
+                <SelectItem value="all">すべて</SelectItem>
                 <SelectItem value="entitlement">Entitlement</SelectItem>
-                <SelectItem value="distribution">Distribution</SelectItem>
-                <SelectItem value="product">Product</SelectItem>
+                <SelectItem value="spell">Spell</SelectItem>
+                <SelectItem value="scope">Scope</SelectItem>
+                <SelectItem value="stripe">Stripe</SelectItem>
                 <SelectItem value="reconcile">Reconcile</SelectItem>
-                <SelectItem value="webhook">Webhook</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           {/* Audit Events */}
-          <div className="rounded-lg border border-border bg-card divide-y divide-border">
-            {filteredAuditEvents.map((event) => {
-              const EventIcon = eventTypeIcons[event.event_type] || FileText
-              const ActorIcon = getActorIcon(event.actor_type)
-              const isExpanded = expandedEvents.has(event.id)
-
-              return (
-                <div key={event.id} className="p-4">
+          {isLoading ? (
+            <div className="rounded-lg border border-border bg-card p-12 text-center text-sm text-muted-foreground">
+              読み込み中...
+            </div>
+          ) : filteredAuditEvents.length === 0 ? (
+            <div className="rounded-lg border border-border bg-card p-12 text-center">
+              <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium text-foreground mb-2">ログがありません</h3>
+              <p className="text-sm text-muted-foreground">まだ監査ログが記録されていません</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {filteredAuditEvents.map((event) => {
+                const Icon = eventTypeIcons[event.eventName] || Shield
+                const isExpanded = expandedEvents.has(event.auditId)
+                const ActorIcon = getActorIcon(event)
+                return (
                   <div
-                    className="flex items-start gap-4 cursor-pointer"
-                    onClick={() => toggleExpand(event.id)}
+                    key={event.auditId}
+                    className="rounded-lg border border-border bg-card overflow-hidden"
                   >
-                    <div className="rounded bg-muted p-2">
-                      <EventIcon className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <code className="text-sm font-mono text-foreground">
-                          {event.event_type}
-                        </code>
-                        <Badge variant="outline" className="text-xs">
-                          {event.target_type}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <ActorIcon className="h-3 w-3" />
-                          <span className="font-mono">{event.actor}</span>
+                    <button
+                      type="button"
+                      className="w-full p-4 text-left hover:bg-accent/30 transition-colors"
+                      onClick={() => toggleExpand(event.auditId)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="p-2 rounded-lg bg-spell-primary/10">
+                            <Icon className="h-4 w-4 text-spell-primary" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-foreground">
+                                {eventLabels[event.eventName] ?? event.eventName}
+                              </span>
+                              <Badge variant="outline" className="text-xs">
+                                {event.eventName}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
+                              <span>{formatTimestamp(event.createdAt)}</span>
+                              {event.targetId && <span>Target: {event.targetId}</span>}
+                            </div>
+                          </div>
                         </div>
-                        <span>→</span>
-                        <span className="font-mono">{event.target_id}</span>
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <ActorIcon className="h-3 w-3" />
+                            <span>{getActorLabel(event)}</span>
+                          </div>
+                          {isExpanded ? (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground font-mono">
-                        {formatTimestamp(event.timestamp)}
-                      </span>
-                      {isExpanded ? (
-                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </div>
+                    </button>
+                    {isExpanded && (
+                      <div className="border-t border-border bg-muted/20 p-4">
+                        <div className="grid gap-4 text-sm">
+                          <div>
+                            <p className="text-xs text-muted-foreground mb-1">Event ID</p>
+                            <code className="text-xs font-mono text-foreground">
+                              {event.auditId}
+                            </code>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground mb-1">Metadata</p>
+                            <pre className="text-xs font-mono text-muted-foreground whitespace-pre-wrap">
+                              {JSON.stringify(event.metadata, null, 2)}
+                            </pre>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  {isExpanded && (
-                    <div className="mt-3 ml-12 rounded border border-border bg-muted/30 p-3">
-                      <p className="text-xs text-muted-foreground mb-2">
-                        {t("spell.audit.details")}
-                      </p>
-                      <pre className="text-xs font-mono text-foreground overflow-x-auto">
-                        {JSON.stringify(event.details, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          )}
         </TabsContent>
 
         {/* Ledger Tab */}
-        <TabsContent value="ledger" className="space-y-4">
-          <div className="rounded-lg border border-border bg-card p-4 mb-4">
-            <p className="text-sm text-muted-foreground">
-              {t("spell.ledger.desc")} - 
-              Stripe Webhookから受信したすべてのイベントが記録されます。冪等性キーにより重複処理を防止しています。
-            </p>
-          </div>
-
-          {/* Ledger Table */}
-          <div className="rounded-lg border border-border bg-card overflow-hidden">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border bg-muted/30">
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    {t("spell.ledger.event_id")}
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    {t("spell.ledger.type")}
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    {t("spell.products.status")}
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    概要
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    {t("spell.ledger.processed_at")}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {mockLedgerEntries.map((entry) => (
-                  <tr
-                    key={entry.id}
-                    className="hover:bg-accent/30 transition-colors"
-                  >
-                    <td className="px-4 py-4">
-                      <code className="text-xs font-mono text-foreground">
-                        {entry.stripe_event_id}
-                      </code>
-                    </td>
-                    <td className="px-4 py-4">
-                      <code className="rounded bg-muted px-2 py-1 text-xs font-mono text-foreground">
-                        {entry.event_type}
-                      </code>
-                    </td>
-                    <td className="px-4 py-4">{getStatusBadge(entry.status)}</td>
-                    <td className="px-4 py-4 text-sm text-muted-foreground">
-                      {entry.payload_summary}
-                    </td>
-                    <td className="px-4 py-4 text-xs text-muted-foreground font-mono">
-                      {formatTimestamp(entry.processed_at)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Idempotency Note */}
-          <div className="rounded-lg border border-border bg-card p-4">
-            <div className="flex items-start gap-3">
-              <div className="rounded bg-muted p-2">
-                <RefreshCw className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <div>
-                <h3 className="font-medium text-foreground mb-1">
-                  {t("spell.ledger.idempotency")}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  同一のStripe Event IDを持つイベントは一度だけ処理されます。
-                  重複イベントは"duplicate"としてマークされ、再処理は行われません。
-                </p>
-              </div>
+        <TabsContent value="ledger">
+          {isLoading ? (
+            <div className="rounded-lg border border-border bg-card p-12 text-center text-sm text-muted-foreground">
+              読み込み中...
             </div>
-          </div>
+          ) : ledgerEntries.length === 0 ? (
+            <div className="rounded-lg border border-border bg-card p-12 text-center">
+              <Webhook className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium text-foreground mb-2">Stripe Ledgerがありません</h3>
+              <p className="text-sm text-muted-foreground">Webhookの受信が発生すると記録されます</p>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-border bg-card overflow-hidden">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-border bg-muted/30">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Stripe Event ID
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Received
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Processed
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Payload Hash
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {ledgerEntries.map((entry) => (
+                    <tr key={entry.stripeEventId} className="hover:bg-accent/30 transition-colors">
+                      <td className="px-4 py-4 text-sm font-mono text-foreground">
+                        {entry.stripeEventId}
+                      </td>
+                      <td className="px-4 py-4">
+                        {getStatusBadge(entry.processedAt)}
+                      </td>
+                      <td className="px-4 py-4 text-sm text-muted-foreground">
+                        {formatTimestamp(entry.receivedAt)}
+                      </td>
+                      <td className="px-4 py-4 text-sm text-muted-foreground">
+                        {entry.processedAt ? formatTimestamp(entry.processedAt) : "—"}
+                      </td>
+                      <td className="px-4 py-4 text-xs font-mono text-muted-foreground">
+                        {entry.payloadHash.slice(0, 12)}...
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

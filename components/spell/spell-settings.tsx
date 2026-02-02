@@ -1,8 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
-  Settings,
   Webhook,
   Key,
   Copy,
@@ -15,7 +14,6 @@ import {
   ExternalLink,
 } from "@/components/icons"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -39,13 +37,13 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { useI18n } from "@/lib/i18n/context"
+import { useAuth } from "@/lib/auth/context"
 
-const mockSettings = {
-  api_key: "ms_live_abc123def456ghi789jkl012mno345pqr678",
-  webhook_url: "https://api.spell.dev/webhooks/stripe/abc123",
-  webhook_secret: "whsec_abc123def456ghi789jkl012mno345pqr678",
-  stripe_connected: true,
-  created_at: "2025-06-01T00:00:00Z",
+type DeveloperKey = {
+  keyId: string
+  name: string
+  status: "active" | "revoked"
+  createdAt: string
 }
 
 const webhookEvents = [
@@ -59,12 +57,68 @@ const webhookEvents = [
 
 export function SpellSettings() {
   const { t } = useI18n()
+  const { userId } = useAuth()
   const [showApiKey, setShowApiKey] = useState(false)
   const [showWebhookSecret, setShowWebhookSecret] = useState(false)
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const [isRegenerateDialogOpen, setIsRegenerateDialogOpen] = useState(false)
+  const [keys, setKeys] = useState<DeveloperKey[]>([])
+  const [keySecret, setKeySecret] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [webhookUrl] = useState(() => {
+    if (typeof window === "undefined") return ""
+    return `${window.location.origin}/api/v1/spell/webhooks/stripe`
+  })
+  const [stripeConnected, setStripeConnected] = useState(false)
+
+  const activeKey = useMemo(
+    () => keys.find((key) => key.status === "active") ?? null,
+    [keys]
+  )
+  const displayKey = keySecret ?? activeKey?.keyId ?? ""
+
+  const load = useCallback(async () => {
+    if (!userId) return
+    setError(null)
+    try {
+      const [keysRes, ledgerRes] = await Promise.all([
+        fetch("/api/v1/developer-keys", { headers: { "x-user-id": userId } }),
+        fetch("/api/v1/spell/ledger?limit=1"),
+      ])
+
+      if (!keysRes.ok) {
+        const payload = await keysRes.json().catch(() => null)
+        throw new Error(payload?.error ?? "APIキーの取得に失敗しました")
+      }
+
+      const keysData = (await keysRes.json()) as {
+        keys: Array<{ key_id: string; name: string; status: "active" | "revoked"; created_at: string }>
+      }
+      setKeys(
+        (keysData.keys ?? []).map((key) => ({
+          keyId: key.key_id,
+          name: key.name,
+          status: key.status,
+          createdAt: key.created_at,
+        }))
+      )
+
+      if (ledgerRes.ok) {
+        const ledgerData = (await ledgerRes.json()) as { entries: Array<{ stripeEventId: string }> }
+        setStripeConnected((ledgerData.entries ?? []).length > 0)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "APIキーの取得に失敗しました")
+    }
+  }, [userId])
+
+  useEffect(() => {
+    void load()
+  }, [load])
 
   const copyToClipboard = async (text: string, field: string) => {
+    if (!text) return
     await navigator.clipboard.writeText(text)
     setCopiedField(field)
     setTimeout(() => setCopiedField(null), 2000)
@@ -73,6 +127,56 @@ export function SpellSettings() {
   const maskValue = (value: string, showFirst: number = 10) => {
     if (value.length <= showFirst) return value
     return value.substring(0, showFirst) + "•".repeat(20)
+  }
+
+  const createKey = async () => {
+    if (!userId) return
+    setIsSubmitting(true)
+    try {
+      const response = await fetch("/api/v1/developer-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-user-id": userId },
+        body: JSON.stringify({ name: "spell-default" }),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        throw new Error(payload?.error ?? "APIキーの作成に失敗しました")
+      }
+      const data = (await response.json()) as { key: { key_id: string; key_secret: string; name: string; status: "active" | "revoked"; created_at: string } }
+      setKeys((prev) => [
+        { keyId: data.key.key_id, name: data.key.name, status: data.key.status, createdAt: data.key.created_at },
+        ...prev,
+      ])
+      setKeySecret(data.key.key_secret)
+      setError(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "APIキーの作成に失敗しました")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const rotateKey = async () => {
+    if (!userId || !activeKey) return
+    setIsSubmitting(true)
+    try {
+      const response = await fetch(`/api/v1/developer-keys/${activeKey.keyId}/rotate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-user-id": userId },
+        body: JSON.stringify({}),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        throw new Error(payload?.error ?? "APIキーの更新に失敗しました")
+      }
+      const data = (await response.json()) as { key_secret: string }
+      setKeySecret(data.key_secret)
+      setError(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "APIキーの更新に失敗しました")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -87,6 +191,12 @@ export function SpellSettings() {
         </p>
       </div>
 
+      {error && (
+        <div className="mb-6 rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
       {/* Auth Provider */}
       <section className="rounded-lg border border-talisman-primary/30 bg-talisman-primary/5 p-6 mb-6">
         <div className="flex items-center gap-3 mb-4">
@@ -94,12 +204,8 @@ export function SpellSettings() {
             <Key className="h-5 w-5 text-talisman-primary" />
           </div>
           <div>
-            <h2 className="font-medium text-foreground">
-              認証プロバイダー
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              userIdの取得元を指定します
-            </p>
+            <h2 className="font-medium text-foreground">認証プロバイダー</h2>
+            <p className="text-sm text-muted-foreground">userIdの取得元を指定します</p>
           </div>
         </div>
 
@@ -135,37 +241,33 @@ export function SpellSettings() {
             <Key className="h-5 w-5 text-muted-foreground" />
           </div>
           <div>
-            <h2 className="font-medium text-foreground">
-              {t("spell.settings.api_key")}
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              APIリクエストの認証に使用します
-            </p>
+            <h2 className="font-medium text-foreground">{t("spell.settings.api_key")}</h2>
+            <p className="text-sm text-muted-foreground">APIリクエストの認証に使用します</p>
           </div>
         </div>
 
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <div className="flex-1 rounded border border-border bg-muted/30 px-3 py-2 font-mono text-sm">
-              {showApiKey
-                ? mockSettings.api_key
-                : maskValue(mockSettings.api_key)}
+              {displayKey
+                ? showApiKey
+                  ? displayKey
+                  : maskValue(displayKey)
+                : "APIキーがありません"}
             </div>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setShowApiKey(!showApiKey)}
+              disabled={!displayKey}
             >
-              {showApiKey ? (
-                <EyeOff className="h-4 w-4" />
-              ) : (
-                <Eye className="h-4 w-4" />
-              )}
+              {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => copyToClipboard(mockSettings.api_key, "api_key")}
+              onClick={() => copyToClipboard(displayKey, "api_key")}
+              disabled={!displayKey}
             >
               {copiedField === "api_key" ? (
                 <Check className="h-4 w-4 text-spell-primary" />
@@ -175,21 +277,21 @@ export function SpellSettings() {
             </Button>
           </div>
 
-          <Dialog
-            open={isRegenerateDialogOpen}
-            onOpenChange={setIsRegenerateDialogOpen}
-          >
+          <Dialog open={isRegenerateDialogOpen} onOpenChange={setIsRegenerateDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2 bg-transparent">
                 <RefreshCw className="h-4 w-4" />
-                {t("spell.settings.regenerate")}
+                {activeKey ? t("spell.settings.regenerate") : "APIキーを作成"}
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>APIキーを再生成</DialogTitle>
+                <DialogTitle>{activeKey ? "APIキーを再生成" : "APIキーを作成"}</DialogTitle>
                 <DialogDescription>
-                  新しいAPIキーを生成します。現在のキーは無効になり、すべてのAPIリクエストが失敗するようになります。
+                  {activeKey
+                    ? "新しいAPIキーを生成します。現在のキーは無効になり、すべてのAPIリクエストが失敗するようになります。"
+                    : "新しいAPIキーを生成します。"
+                  }
                 </DialogDescription>
               </DialogHeader>
               <div className="py-4">
@@ -212,9 +314,17 @@ export function SpellSettings() {
                 </Button>
                 <Button
                   variant="destructive"
-                  onClick={() => setIsRegenerateDialogOpen(false)}
+                  onClick={async () => {
+                    if (activeKey) {
+                      await rotateKey()
+                    } else {
+                      await createKey()
+                    }
+                    setIsRegenerateDialogOpen(false)
+                  }}
+                  disabled={isSubmitting}
                 >
-                  再生成する
+                  {activeKey ? "再生成する" : "作成する"}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -230,23 +340,19 @@ export function SpellSettings() {
               <Webhook className="h-5 w-5 text-muted-foreground" />
             </div>
             <div>
-              <h2 className="font-medium text-foreground">
-                {t("spell.settings.webhook")}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Stripe Webhookエンドポイント
-              </p>
+              <h2 className="font-medium text-foreground">{t("spell.settings.webhook")}</h2>
+              <p className="text-sm text-muted-foreground">Stripe Webhookエンドポイント</p>
             </div>
           </div>
           <Badge
             variant="outline"
             className={
-              mockSettings.stripe_connected
+              stripeConnected
                 ? "bg-spell-primary/10 text-spell-primary border-transparent"
-                : "bg-destructive/10 text-destructive border-transparent"
+                : "bg-muted text-muted-foreground border-transparent"
             }
           >
-            {mockSettings.stripe_connected ? "Connected" : "Disconnected"}
+            {stripeConnected ? "Connected" : "Not configured"}
           </Badge>
         </div>
 
@@ -256,14 +362,13 @@ export function SpellSettings() {
             <Label>{t("spell.settings.webhook_url")}</Label>
             <div className="flex items-center gap-2">
               <div className="flex-1 rounded border border-border bg-muted/30 px-3 py-2 font-mono text-sm text-foreground">
-                {mockSettings.webhook_url}
+                {webhookUrl}
               </div>
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() =>
-                  copyToClipboard(mockSettings.webhook_url, "webhook_url")
-                }
+                onClick={() => copyToClipboard(webhookUrl, "webhook_url")}
+                disabled={!webhookUrl}
               >
                 {copiedField === "webhook_url" ? (
                   <Check className="h-4 w-4 text-spell-primary" />
@@ -282,38 +387,18 @@ export function SpellSettings() {
             <Label>{t("spell.settings.webhook_secret")}</Label>
             <div className="flex items-center gap-2">
               <div className="flex-1 rounded border border-border bg-muted/30 px-3 py-2 font-mono text-sm">
-                {showWebhookSecret
-                  ? mockSettings.webhook_secret
-                  : maskValue(mockSettings.webhook_secret)}
+                {showWebhookSecret ? "Stripeダッシュボードで管理" : maskValue("Stripeダッシュボードで管理")}
               </div>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowWebhookSecret(!showWebhookSecret)}
               >
-                {showWebhookSecret ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() =>
-                  copyToClipboard(mockSettings.webhook_secret, "webhook_secret")
-                }
-              >
-                {copiedField === "webhook_secret" ? (
-                  <Check className="h-4 w-4 text-spell-primary" />
-                ) : (
-                  <Copy className="h-4 w-4" />
-                )}
+                {showWebhookSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              StripeダッシュボードでWebhookを作成した後、表示されるSigning
-              Secretを入力してください
+              StripeダッシュボードでWebhookを作成した後、表示されるSigning Secretを入力してください
             </p>
           </div>
 
@@ -363,12 +448,8 @@ export function SpellSettings() {
             <AlertTriangle className="h-5 w-5 text-destructive" />
           </div>
           <div>
-            <h2 className="font-medium text-foreground">
-              {t("spell.settings.danger_zone")}
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              これらの操作は取り消せません
-            </p>
+            <h2 className="font-medium text-foreground">{t("spell.settings.danger_zone")}</h2>
+            <p className="text-sm text-muted-foreground">これらの操作は取り消せません</p>
           </div>
         </div>
 
@@ -413,9 +494,9 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 export async function POST(req: Request) {
   const body = await req.text();
   const signature = headers().get('stripe-signature')!;
-  
+
   let event: Stripe.Event;
-  
+
   try {
     event = stripe.webhooks.constructEvent(
       body,
@@ -425,9 +506,9 @@ export async function POST(req: Request) {
   } catch (err) {
     return new Response('Webhook signature verification failed', { status: 400 });
   }
-  
+
   // Forward to Spell
-  await fetch('${mockSettings.webhook_url}', {
+  await fetch('${webhookUrl}', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -435,7 +516,7 @@ export async function POST(req: Request) {
     },
     body: JSON.stringify(event),
   });
-  
+
   return new Response('OK');
 }`}
           </pre>

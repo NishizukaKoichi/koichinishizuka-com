@@ -1,10 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Download, FolderOpen, Eye, Edit, Trash2, MoreVertical, ExternalLink, RefreshCw } from "@/components/icons"
+import { Download, FolderOpen, Eye, Edit, Trash2, MoreVertical, ExternalLink } from "@/components/icons"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
   DropdownMenu,
@@ -22,56 +22,127 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { useI18n } from "@/lib/i18n/context"
+import { useAuth } from "@/lib/auth/context"
 
-const mockAdoptedSpaces = [
-  {
-    id: "adopted-1",
-    name: "Engineering Onboarding",
-    originalAuthor: "TechCorp Inc.",
-    originalId: "techcorp-eng",
-    purpose: "新規エンジニアが最初の30日で理解すべき術式",
-    adoptedAt: "2026-01-15",
-    lastSynced: "2026-01-20",
-    hasUpdates: true,
-    chapters: 6,
-  },
-  {
-    id: "adopted-2",
-    name: "Design System Guidelines",
-    originalAuthor: "DesignStudio",
-    originalId: "designstudio-ds",
-    purpose: "デザインシステムの運用ルール",
-    adoptedAt: "2026-01-10",
-    lastSynced: "2026-01-10",
-    hasUpdates: false,
-    chapters: 4,
-  },
-  {
-    id: "adopted-3",
-    name: "Remote Work Protocol",
-    originalAuthor: "RemoteFirst Co.",
-    originalId: "remotefirst-protocol",
-    purpose: "リモートワークにおける判断基準",
-    adoptedAt: "2026-01-05",
-    lastSynced: "2026-01-18",
-    hasUpdates: false,
-    chapters: 5,
-  },
-]
+type Adoption = {
+  adoptionId: string
+  spaceId: string
+  status: "accepted" | "declined"
+  decidedAt: string
+}
+
+type Space = {
+  spaceId: string
+  title: string
+  purpose: string
+}
+
+type AdoptedSpace = {
+  id: string
+  name: string
+  originalId: string
+  purpose: string
+  adoptedAt: string
+  chapters: number
+}
 
 export default function SigilAdoptedPage() {
   const { t } = useI18n()
+  const { userId } = useAuth()
   const [deleteDialog, setDeleteDialog] = useState<string | null>(null)
-  const [syncDialog, setSyncDialog] = useState<string | null>(null)
+  const [adoptedSpaces, setAdoptedSpaces] = useState<AdoptedSpace[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const handleDelete = (id: string) => {
-    // Delete logic
-    setDeleteDialog(null)
-  }
+  useEffect(() => {
+    if (!userId) {
+      setError("ログインが必要です")
+      setLoading(false)
+      return
+    }
 
-  const handleSync = (id: string) => {
-    // Sync logic
-    setSyncDialog(null)
+    let cancelled = false
+
+    const load = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const res = await fetch("/api/v1/sigil/adoptions", {
+          headers: { "x-user-id": userId },
+        })
+        if (!res.ok) {
+          throw new Error("採用術式の取得に失敗しました")
+        }
+        const data = (await res.json()) as { adoptions: Adoption[] }
+        const accepted = (data.adoptions ?? []).filter((adoption) => adoption.status === "accepted")
+
+        const enriched = await Promise.all(
+          accepted.map(async (adoption) => {
+            let space: Space | null = null
+            let chapterCount = 0
+            try {
+              const readerRes = await fetch(`/api/v1/sigil/reader/${adoption.spaceId}`, {
+                headers: { "x-user-id": userId },
+              })
+              if (readerRes.ok) {
+                const readerData = (await readerRes.json()) as { space: Space; chapters: unknown[] }
+                space = readerData.space
+                chapterCount = readerData.chapters?.length ?? 0
+              }
+            } catch {
+              space = null
+            }
+
+            return {
+              id: adoption.spaceId,
+              originalId: adoption.spaceId,
+              name: space?.title ?? adoption.spaceId,
+              purpose: space?.purpose ?? "",
+              adoptedAt: adoption.decidedAt.split("T")[0],
+              chapters: chapterCount,
+            }
+          })
+        )
+
+        if (!cancelled) {
+          setAdoptedSpaces(enriched)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "データ取得に失敗しました")
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [userId])
+
+  const handleDelete = async (spaceId: string) => {
+    if (!userId) {
+      return
+    }
+    try {
+      const res = await fetch(`/api/v1/sigil/spaces/${spaceId}/adopt`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-user-id": userId },
+        body: JSON.stringify({ status: "declined" }),
+      })
+      if (!res.ok) {
+        throw new Error("採用解除に失敗しました")
+      }
+      setAdoptedSpaces((prev) => prev.filter((space) => space.id !== spaceId))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "採用解除に失敗しました")
+    } finally {
+      setDeleteDialog(null)
+    }
   }
 
   return (
@@ -92,12 +163,14 @@ export default function SigilAdoptedPage() {
         </Link>
       </div>
 
+      {error && <div className="text-sm text-red-500">{error}</div>}
+
       {/* Adopted spaces list */}
-      {mockAdoptedSpaces.length === 0 ? (
+      {adoptedSpaces.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Download className="h-12 w-12 text-muted-foreground/50 mb-4" />
-            <p className="text-muted-foreground">採用した術式はありません</p>
+            <p className="text-muted-foreground">{loading ? "読み込み中..." : "採用した術式はありません"}</p>
             <Link href="/sigil/explore" className="mt-4">
               <Button variant="outline" className="bg-transparent">
                 公開術式を探索する
@@ -107,23 +180,21 @@ export default function SigilAdoptedPage() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {mockAdoptedSpaces.map((space) => (
+          {adoptedSpaces.map((space) => (
             <Card key={space.id} className="hover:border-muted-foreground/30 transition-colors">
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <Link 
-                        href={`/sigil/spaces/${space.id}/edit`}
+                        href={`/sigil/explore/${space.originalId}`}
                         className="font-medium text-foreground hover:underline"
                       >
                         {space.name}
                       </Link>
-                      {space.hasUpdates && (
-                        <Badge variant="secondary" className="text-xs bg-amber-500/10 text-amber-500">
-                          更新あり
-                        </Badge>
-                      )}
+                      <Badge variant="secondary" className="text-xs">
+                        採用済み
+                      </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground truncate">
                       {space.purpose}
@@ -131,24 +202,13 @@ export default function SigilAdoptedPage() {
                     <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <ExternalLink className="h-3 w-3" />
-                        {space.originalAuthor}
+                        Public Sigil
                       </span>
                       <span>{space.chapters}章</span>
                       <span>採用: {space.adoptedAt}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {space.hasUpdates && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-1 bg-transparent"
-                        onClick={() => setSyncDialog(space.id)}
-                      >
-                        <RefreshCw className="h-3.5 w-3.5" />
-                        同期
-                      </Button>
-                    )}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -157,20 +217,8 @@ export default function SigilAdoptedPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem asChild>
-                          <Link href={`/sigil/space/${space.id}`} className="flex items-center gap-2">
-                            <Eye className="h-4 w-4" />
-                            プレビュー
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <Link href={`/sigil/spaces/${space.id}/edit`} className="flex items-center gap-2">
-                            <Edit className="h-4 w-4" />
-                            編集
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
                           <Link href={`/sigil/explore/${space.originalId}`} className="flex items-center gap-2">
-                            <ExternalLink className="h-4 w-4" />
+                            <Eye className="h-4 w-4" />
                             元の術式を見る
                           </Link>
                         </DropdownMenuItem>
@@ -192,56 +240,24 @@ export default function SigilAdoptedPage() {
         </div>
       )}
 
-      {/* Sync Dialog */}
-      <Dialog open={!!syncDialog} onOpenChange={() => setSyncDialog(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>術式を同期</DialogTitle>
-            <DialogDescription>
-              元の術式に更新があります。同期すると、あなたのカスタマイズ内容は上書きされる可能性があります。
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <p className="text-sm text-muted-foreground">
-              同期オプション:
-            </p>
-            <ul className="mt-2 space-y-2 text-sm">
-              <li className="flex items-center gap-2">
-                <input type="radio" name="sync" id="sync-full" defaultChecked />
-                <label htmlFor="sync-full">完全同期（カスタマイズを破棄）</label>
-              </li>
-              <li className="flex items-center gap-2">
-                <input type="radio" name="sync" id="sync-merge" />
-                <label htmlFor="sync-merge">差分を確認して手動マージ</label>
-              </li>
-            </ul>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSyncDialog(null)} className="bg-transparent">
-              キャンセル
-            </Button>
-            <Button onClick={() => handleSync(syncDialog!)}>
-              同期する
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Delete Dialog */}
       <Dialog open={!!deleteDialog} onOpenChange={() => setDeleteDialog(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>採用を解除</DialogTitle>
+            <DialogTitle>採用を解除しますか？</DialogTitle>
             <DialogDescription>
-              この術式の採用を解除しますか？スペースとその内容は完全に削除されます。
+              採用解除すると、この術式への参照が外れます。
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialog(null)} className="bg-transparent">
+            <Button variant="outline" onClick={() => setDeleteDialog(null)}>
               キャンセル
             </Button>
-            <Button variant="destructive" onClick={() => handleDelete(deleteDialog!)}>
-              解除する
+            <Button
+              variant="destructive"
+              onClick={() => deleteDialog && handleDelete(deleteDialog)}
+            >
+              採用解除
             </Button>
           </DialogFooter>
         </DialogContent>

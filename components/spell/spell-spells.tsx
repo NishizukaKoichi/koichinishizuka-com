@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import {
   Sparkles,
@@ -8,10 +8,8 @@ import {
   MoreHorizontal,
   Pencil,
   Trash2,
-  ExternalLink,
   Search,
   Zap,
-  Package,
 } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -25,83 +23,82 @@ import {
 import { useI18n } from "@/lib/i18n/context"
 
 type Spell = {
-  id: string
+  spellId: string
   name: string
   sku: string
-  price: number
-  currency: string
   type: "one_time" | "subscription"
-  interval?: "month" | "year"
   status: "active" | "inactive"
-  stripe_product_id: string
-  stripe_price_id: string
-  created_at: string
-  entitlements_count: number
+  createdAt: string
   scopes: string[]
+  entitlementsCount: number
 }
-
-const mockSpells: Spell[] = [
-  {
-    id: "spell_001",
-    name: "Pro Execution",
-    sku: "PRO_EXEC",
-    price: 2980,
-    currency: "JPY",
-    type: "subscription",
-    interval: "month",
-    status: "active",
-    stripe_product_id: "prod_abc123",
-    stripe_price_id: "price_def456",
-    created_at: "2025-06-01T00:00:00Z",
-    entitlements_count: 89,
-    scopes: ["premium:execute", "premium:export"],
-  },
-  {
-    id: "spell_002",
-    name: "Starter Access",
-    sku: "STARTER_ACCESS",
-    price: 980,
-    currency: "JPY",
-    type: "subscription",
-    interval: "month",
-    status: "active",
-    stripe_product_id: "prod_ghi789",
-    stripe_price_id: "price_jkl012",
-    created_at: "2025-06-01T00:00:00Z",
-    entitlements_count: 39,
-    scopes: ["basic:execute"],
-  },
-  {
-    id: "spell_003",
-    name: "CLI Tool Lifetime",
-    sku: "CLI_LIFETIME",
-    price: 9800,
-    currency: "JPY",
-    type: "one_time",
-    status: "active",
-    stripe_product_id: "prod_mno345",
-    stripe_price_id: "price_pqr678",
-    created_at: "2025-08-15T00:00:00Z",
-    entitlements_count: 24,
-    scopes: ["cli:execute", "cli:download"],
-  },
-]
 
 export function SpellSpells() {
   const { t, language } = useI18n()
   const [searchQuery, setSearchQuery] = useState("")
-  const filteredSpells = mockSpells.filter(
-    (spell) =>
-      spell.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      spell.sku.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const [spells, setSpells] = useState<Spell[]>([])
+  const [error, setError] = useState<string | null>(null)
 
-  const formatPrice = (price: number, currency: string) => {
-    return new Intl.NumberFormat("ja-JP", {
-      style: "currency",
-      currency: currency,
-    }).format(price)
-  }
+  useEffect(() => {
+    let cancelled = false
+
+    const load = async () => {
+      setError(null)
+      try {
+        const res = await fetch("/api/v1/spell/spells")
+        if (!res.ok) {
+          throw new Error("Spellの取得に失敗しました")
+        }
+        const data = (await res.json()) as { spells: Array<{ spellId: string; name: string; sku: string; type: "one_time" | "subscription"; status: "active" | "inactive"; createdAt: string }> }
+
+        const enriched = await Promise.all(
+          (data.spells ?? []).map(async (spell) => {
+            const detailRes = await fetch(`/api/v1/spell/spells/${spell.spellId}`)
+            const detailData = detailRes.ok
+              ? ((await detailRes.json()) as { spell: { scopes?: string[] } })
+              : { spell: { scopes: [] } }
+
+            const entitlementsRes = await fetch(`/api/v1/spell/entitlements?spell_id=${spell.spellId}`)
+            const entitlementsData = entitlementsRes.ok
+              ? ((await entitlementsRes.json()) as { entitlements: Array<{ status: "active" | "revoked" }> })
+              : { entitlements: [] }
+
+            return {
+              spellId: spell.spellId,
+              name: spell.name,
+              sku: spell.sku,
+              type: spell.type,
+              status: spell.status,
+              createdAt: spell.createdAt,
+              scopes: detailData.spell.scopes ?? [],
+              entitlementsCount: entitlementsData.entitlements?.length ?? 0,
+            }
+          })
+        )
+
+        if (!cancelled) {
+          setSpells(enriched)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "データ取得に失敗しました")
+        }
+      }
+    }
+
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const filteredSpells = useMemo(() => {
+    return spells.filter(
+      (spell) =>
+        spell.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        spell.sku.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+  }, [spells, searchQuery])
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -123,6 +120,8 @@ export function SpellSpells() {
           </Button>
         </Link>
       </div>
+
+      {error && <div className="text-sm text-red-500 mb-4">{error}</div>}
 
       {/* Explanation */}
       <div className="mb-6 rounded-lg border border-spell-primary/20 bg-spell-primary/5 p-4">
@@ -170,7 +169,7 @@ export function SpellSpells() {
       ) : (
         <div className="rounded-lg border border-border bg-card overflow-hidden">
           <table className="w-full">
-<thead>
+            <thead>
               <tr className="border-b border-border bg-muted/30">
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Spell
@@ -198,7 +197,7 @@ export function SpellSpells() {
             <tbody className="divide-y divide-border">
               {filteredSpells.map((spell) => (
                 <tr
-                  key={spell.id}
+                  key={spell.spellId}
                   className="hover:bg-accent/30 transition-colors"
                 >
                   <td className="px-4 py-4">
@@ -212,72 +211,47 @@ export function SpellSpells() {
                   </td>
                   <td className="px-4 py-4">
                     <div className="flex flex-wrap gap-1">
-                      {spell.scopes.map((scope) => (
-                        <code key={scope} className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono text-muted-foreground">
-                          {scope}
-                        </code>
-                      ))}
+                      {spell.scopes.length === 0 ? (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      ) : (
+                        spell.scopes.map((scope) => (
+                          <code key={scope} className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono text-muted-foreground">
+                            {scope}
+                          </code>
+                        ))
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-4">
-                    <Badge
-                      variant="outline"
-                      className={
-                        spell.type === "subscription"
-                          ? "border-spell-primary text-spell-primary"
-                          : ""
-                      }
-                    >
-                      {spell.type === "subscription"
-                        ? `${language === "ja" ? "サブスク" : "Subscription"}`
-                        : language === "ja" ? "買い切り" : "One-time"}
+                    <Badge variant="secondary">
+                      {spell.type === "subscription" ? "Subscription" : "One-time"}
                     </Badge>
                   </td>
-                  <td className="px-4 py-4 font-mono text-foreground">
-                    {formatPrice(spell.price, spell.currency)}
-                    {spell.type === "subscription" && (
-                      <span className="text-muted-foreground text-xs">
-                        /{spell.interval === "month" ? (language === "ja" ? "月" : "mo") : (language === "ja" ? "年" : "yr")}
-                      </span>
-                    )}
-                  </td>
+                  <td className="px-4 py-4 text-sm text-muted-foreground">—</td>
                   <td className="px-4 py-4">
-                    <Badge
-                      variant={
-                        spell.status === "active" ? "default" : "secondary"
-                      }
-                      className={
-                        spell.status === "active"
-                          ? "bg-spell-primary/20 text-spell-primary border-spell-primary/30"
-                          : ""
-                      }
-                    >
-                      {spell.status === "active"
-                        ? (language === "ja" ? "有効" : "Active")
-                        : (language === "ja" ? "無効" : "Inactive")}
+                    <Badge variant={spell.status === "active" ? "default" : "secondary"}>
+                      {spell.status === "active" ? "Active" : "Inactive"}
                     </Badge>
                   </td>
-                  <td className="px-4 py-4 text-foreground">
-                    {spell.entitlements_count}
+                  <td className="px-4 py-4 text-sm text-muted-foreground">
+                    {spell.entitlementsCount}
                   </td>
                   <td className="px-4 py-4 text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm">
+                        <Button variant="ghost" size="icon">
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem>
-                          <Pencil className="mr-2 h-4 w-4" />
-                          編集
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <ExternalLink className="mr-2 h-4 w-4" />
-                          Stripeで開く
+                        <DropdownMenuItem asChild>
+                          <Link href={`/spell/spells/${spell.spellId}`} className="flex items-center gap-2">
+                            <Pencil className="h-4 w-4" />
+                            詳細
+                          </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem className="text-destructive">
-                          <Trash2 className="mr-2 h-4 w-4" />
+                          <Trash2 className="h-4 w-4 mr-2" />
                           削除
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -289,25 +263,6 @@ export function SpellSpells() {
           </table>
         </div>
       )}
-
-      {/* Important Note */}
-      <div className="mt-6 rounded-lg border border-border bg-card p-4">
-        <div className="flex items-start gap-3">
-          <div className="rounded bg-muted p-2">
-            <ExternalLink className="h-4 w-4 text-muted-foreground" />
-          </div>
-          <div>
-            <h3 className="font-medium text-foreground mb-1">
-              {language === "ja" ? "Spellの責任範囲" : "Spell's Responsibility"}
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              {language === "ja"
-                ? "Spellは「この実行を許可するか」にYes/Noを返すだけ。処理の中身、安全性、正しさ、価格は一切関与しません。"
-                : "Spell only returns Yes/No to 'is this execution allowed?'. It has no involvement in the processing itself, safety, correctness, or pricing."}
-            </p>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }

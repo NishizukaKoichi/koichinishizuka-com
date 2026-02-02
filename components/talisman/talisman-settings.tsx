@@ -117,7 +117,7 @@ export function TalismanSettings() {
             <div>
               <p className="font-medium">Notify on score change</p>
               <p className="text-sm text-muted-foreground">
-                Send webhook when a person's score changes
+                Send webhook when a person&apos;s score changes
               </p>
             </div>
             <Switch defaultChecked />

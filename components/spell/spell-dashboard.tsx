@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import {
   Sparkles,
@@ -8,86 +9,126 @@ import {
   Webhook,
   ArrowRight,
   ArrowUpRight,
-  Code,
-  ExternalLink,
   Zap,
-  Package,
 } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 import { useI18n } from "@/lib/i18n/context"
 
-const mockStats = [
-  {
-    label: "Spells",
-    value: "3",
-    change: null,
-    icon: Sparkles,
-  },
-  {
-    labelKey: "spell.stats.active_entitlements",
-    value: "128",
-    change: "+12",
-    trend: "up",
-    icon: Shield,
-  },
-  {
-    label: "Scopes",
-    value: "4",
-    change: null,
-    icon: Key,
-  },
-  {
-    labelKey: "spell.stats.webhook_events",
-    value: "256",
-    change: null,
-    icon: Webhook,
-  },
-]
+type Spell = { spellId: string }
 
-const recentEvents = [
-  {
-    type: "entitlement_granted",
-    user: "user_abc123",
-    scope: "pro:execute",
-    timestamp: "2026-01-25T10:30:00Z",
-  },
-  {
-    type: "entitlement_check",
-    user: "user_def456",
-    scope: "cli:download",
-    result: "allowed",
-    timestamp: "2026-01-25T10:25:00Z",
-  },
-  {
-    type: "subscription_renewed",
-    user: "user_ghi789",
-    scope: "pro:execute",
-    timestamp: "2026-01-25T10:20:00Z",
-  },
-  {
-    type: "entitlement_revoked",
-    user: "user_jkl012",
-    scope: "starter:access",
-    timestamp: "2026-01-25T10:15:00Z",
-  },
-  {
-    type: "webhook_received",
-    user: "stripe",
-    scope: "checkout.session.completed",
-    timestamp: "2026-01-25T10:10:00Z",
-  },
-]
+type Scope = { scopeKey: string }
+
+type Entitlement = { status: "active" | "revoked" }
+
+type AuditEvent = {
+  auditId: string
+  eventName: string
+  actorId?: string
+  targetId?: string
+  metadata: Record<string, unknown>
+  createdAt: string
+}
+
+type Stat = {
+  label: string
+  value: string
+  change?: string | null
+  trend?: "up"
+  icon: typeof Sparkles
+}
 
 const eventTypeLabels: Record<string, { label: string; color: string }> = {
+  spell_created: { label: "Spell作成", color: "text-spell-primary" },
+  spell_status_updated: { label: "状態更新", color: "text-muted-foreground" },
+  scope_created: { label: "Scope作成", color: "text-spell-primary" },
   entitlement_granted: { label: "権利付与", color: "text-spell-primary" },
   entitlement_revoked: { label: "権利剥奪", color: "text-destructive" },
-  entitlement_check: { label: "チェック", color: "text-muted-foreground" },
-  subscription_renewed: { label: "更新", color: "text-spell-primary" },
-  webhook_received: { label: "Webhook", color: "text-talisman-primary" },
+  stripe_event_processed: { label: "Webhook", color: "text-talisman-primary" },
+  reconcile_executed: { label: "Reconcile", color: "text-muted-foreground" },
 }
 
 export function SpellDashboard() {
   const { t } = useI18n()
+  const [stats, setStats] = useState<Stat[]>([])
+  const [recentEvents, setRecentEvents] = useState<AuditEvent[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const load = async () => {
+      try {
+        const [spellsRes, scopesRes, entitlementsRes, auditRes] = await Promise.all([
+          fetch("/api/v1/spell/spells"),
+          fetch("/api/v1/spell/scopes"),
+          fetch("/api/v1/spell/entitlements"),
+          fetch("/api/v1/spell/audit?limit=5"),
+        ])
+
+        const spellsData = spellsRes.ok ? ((await spellsRes.json()) as { spells: Spell[] }) : { spells: [] }
+        const scopesData = scopesRes.ok ? ((await scopesRes.json()) as { scopes: Scope[] }) : { scopes: [] }
+        const entitlementsData = entitlementsRes.ok
+          ? ((await entitlementsRes.json()) as { entitlements: Entitlement[] })
+          : { entitlements: [] }
+        const auditData = auditRes.ok ? ((await auditRes.json()) as { audit: AuditEvent[] }) : { audit: [] }
+
+        const activeEntitlements = entitlementsData.entitlements.filter((entitlement) => entitlement.status === "active")
+        const webhookEvents = auditData.audit.filter((event) => event.eventName === "stripe_event_processed")
+
+        const nextStats: Stat[] = [
+          {
+            label: "Spells",
+            value: String(spellsData.spells.length),
+            change: null,
+            icon: Sparkles,
+          },
+          {
+            label: t("spell.stats.active_entitlements"),
+            value: String(activeEntitlements.length),
+            change: null,
+            icon: Shield,
+          },
+          {
+            label: "Scopes",
+            value: String(scopesData.scopes.length),
+            change: null,
+            icon: Key,
+          },
+          {
+            label: t("spell.stats.webhook_events"),
+            value: String(webhookEvents.length),
+            change: null,
+            icon: Webhook,
+          },
+        ]
+
+        if (!cancelled) {
+          setStats(nextStats)
+          setRecentEvents(auditData.audit)
+        }
+      } catch {
+        if (!cancelled) {
+          setStats([])
+          setRecentEvents([])
+        }
+      }
+    }
+
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [t])
+
+  const formattedEvents = useMemo(() => {
+    return recentEvents.map((event) => {
+      const scope = typeof event.metadata?.scope === "string" ? event.metadata.scope : null
+      const sku = typeof event.metadata?.sku === "string" ? event.metadata.sku : null
+      return {
+        ...event,
+        scope: scope ?? sku ?? "-",
+      }
+    })
+  }, [recentEvents])
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -120,7 +161,7 @@ export function SpellDashboard() {
 
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-4 mb-8">
-        {mockStats.map((stat, index) => {
+        {stats.map((stat, index) => {
           const Icon = stat.icon
           return (
             <div
@@ -140,7 +181,7 @@ export function SpellDashboard() {
                 {stat.value}
               </div>
               <div className="text-xs text-muted-foreground">
-                {stat.labelKey ? t(stat.labelKey) : stat.label}
+                {stat.label}
               </div>
             </div>
           )
@@ -209,102 +250,40 @@ export function SpellDashboard() {
             </div>
           </div>
           <div className="divide-y divide-border">
-            {recentEvents.map((event, index) => {
-              const eventInfo = eventTypeLabels[event.type]
+            {formattedEvents.map((event) => {
+              const eventInfo = eventTypeLabels[event.eventName] ?? { label: event.eventName, color: "text-muted-foreground" }
               return (
-                <div key={index} className="px-4 py-3">
+                <div key={event.auditId} className="px-4 py-3">
                   <div className="flex items-center justify-between mb-1">
                     <span className={`text-xs font-mono ${eventInfo.color}`}>
                       {eventInfo.label}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {new Date(event.timestamp).toLocaleTimeString("ja-JP", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                      {new Date(event.createdAt).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="text-muted-foreground font-mono text-xs">
-                      {event.user}
-                    </span>
-                    <span className="text-muted-foreground">→</span>
-                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded text-foreground">
-                      {event.scope}
-                    </code>
+                  <div className="text-xs text-muted-foreground">
+                    {event.actorId ?? event.targetId ?? "system"} · {event.scope}
                   </div>
                 </div>
               )
             })}
+            {formattedEvents.length === 0 && (
+              <div className="px-4 py-3 text-xs text-muted-foreground">イベントがありません</div>
+            )}
           </div>
         </div>
 
-        {/* User Flow */}
+        {/* Flow Summary */}
         <div className="rounded-lg border border-border bg-card">
           <div className="border-b border-border p-4">
-            <h2 className="font-medium text-foreground">ユーザー体験フロー</h2>
+            <h2 className="font-medium text-foreground">実行フロー</h2>
           </div>
-          <div className="p-4 space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="rounded-full bg-muted w-6 h-6 flex items-center justify-center text-xs font-mono text-muted-foreground">1</div>
-              <div>
-                <div className="font-medium text-foreground text-sm">まず試す</div>
-                <p className="text-xs text-muted-foreground">ユーザーはあなたのプロダクトを普通に使う</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="rounded-full bg-muted w-6 h-6 flex items-center justify-center text-xs font-mono text-muted-foreground">2</div>
-              <div>
-                <div className="font-medium text-foreground text-sm">止まる</div>
-                <p className="text-xs text-muted-foreground">権利が必要な操作に当たると、SpellがNoを返す</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="rounded-full bg-muted w-6 h-6 flex items-center justify-center text-xs font-mono text-muted-foreground">3</div>
-              <div>
-                <div className="font-medium text-foreground text-sm">支払う</div>
-                <p className="text-xs text-muted-foreground">Stripeで決済、Webhookで権利が即時付与</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="rounded-full bg-spell-primary/20 w-6 h-6 flex items-center justify-center text-xs font-mono text-spell-primary">4</div>
-              <div>
-                <div className="font-medium text-foreground text-sm">通る</div>
-                <p className="text-xs text-muted-foreground">同じ操作をやり直すと、今度は通る</p>
-              </div>
-            </div>
-            <div className="mt-4 pt-4 border-t border-border">
-              <Link href="/spell/integration" className="text-sm text-spell-primary hover:underline flex items-center gap-1">
-                統合ガイドを見る
-                <ExternalLink className="h-3 w-3" />
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* API Example */}
-      <div className="mt-6 rounded-lg border border-border bg-card">
-        <div className="border-b border-border p-4 flex items-center gap-2">
-          <Code className="h-4 w-4 text-muted-foreground" />
-          <h2 className="font-medium text-foreground">API使用例</h2>
-        </div>
-        <div className="p-4">
-          <div className="rounded border border-border bg-muted/30 p-4 font-mono text-xs overflow-x-auto">
-            <pre className="text-muted-foreground">
-              {`// あなたのプロダクト側で
-const { entitled } = await fetch('https://api.spell.dev/v1/check', {
-  method: 'POST',
-  headers: { 'Authorization': 'Bearer ' + API_KEY },
-  body: JSON.stringify({ user_id: 'user_abc', scope: 'pro:execute' })
-}).then(r => r.json());
-
-if (!entitled) {
-  throw new Error('Not entitled');  // 購入へ誘導
-}
-
-// 機能を実行...`}
-            </pre>
+          <div className="p-4 text-sm text-muted-foreground space-y-3">
+            <p>1. Spell Runtime が Scope Check を送信</p>
+            <p>2. Entitlement が有効なら allowed=true</p>
+            <p>3. allowed=true の場合のみ実行</p>
+            <p>4. allowed=false の場合は即終了</p>
           </div>
         </div>
       </div>

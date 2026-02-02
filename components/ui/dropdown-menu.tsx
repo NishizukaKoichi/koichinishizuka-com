@@ -17,11 +17,12 @@ export function DropdownMenuTrigger({ asChild, ...props }: React.ButtonHTMLAttri
   const context = React.useContext(DropdownContext)
   if (!context) return null
   const handleClick = () => context.setOpen(!context.open)
+  const { asChild: _ignored, ...triggerProps } = props as { asChild?: boolean }
   if (asChild && React.isValidElement(props.children)) {
     return React.cloneElement(props.children, { onClick: handleClick })
   }
   return (
-    <button type="button" onClick={handleClick} {...props}>
+    <button type="button" onClick={handleClick} {...triggerProps}>
       {props.children}
     </button>
   )
@@ -45,6 +46,7 @@ export function DropdownMenuItem({
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { asChild?: boolean }) {
   const context = React.useContext(DropdownContext)
+  const { asChild: _ignored, ...itemProps } = props as { asChild?: boolean }
   const handleClick = (event: React.MouseEvent<HTMLElement>) => {
     if (disabled) {
       event.preventDefault()
@@ -63,7 +65,7 @@ export function DropdownMenuItem({
         children.props?.className
       ),
       "aria-disabled": disabled || undefined,
-      ...props,
+      ...itemProps,
     })
   }
 
@@ -76,7 +78,7 @@ export function DropdownMenuItem({
         className
       )}
       onClick={handleClick}
-      {...props}
+      {...itemProps}
     />
   )
 }

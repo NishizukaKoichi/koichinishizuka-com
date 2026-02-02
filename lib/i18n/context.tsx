@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import { createContext, useContext, useState, type ReactNode } from "react"
 import { translations, defaultLocale, type Locale, type TranslationKey } from "./translations"
 
 interface I18nContextType {
@@ -11,26 +11,32 @@ interface I18nContextType {
 
 const I18nContext = createContext<I18nContextType | null>(null)
 
+const getInitialLocale = (): Locale => {
+  if (typeof window === "undefined") {
+    return defaultLocale
+  }
+
+  const saved = window.localStorage.getItem("epoch-locale") as Locale | null
+  if (saved && saved in translations) {
+    return saved
+  }
+
+  const browserLang = navigator.language.split("-")[0] as Locale
+  if (browserLang in translations) {
+    return browserLang
+  }
+
+  return defaultLocale
+}
+
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>(defaultLocale)
-
-  useEffect(() => {
-    // Detect browser language on mount
-    const browserLang = navigator.language.split("-")[0] as Locale
-    if (browserLang in translations) {
-      setLocaleState(browserLang)
-    }
-
-    // Check localStorage for saved preference
-    const saved = localStorage.getItem("epoch-locale") as Locale
-    if (saved && saved in translations) {
-      setLocaleState(saved)
-    }
-  }, [])
+  const [locale, setLocaleState] = useState<Locale>(getInitialLocale)
 
   const setLocale = (newLocale: Locale) => {
     setLocaleState(newLocale)
-    localStorage.setItem("epoch-locale", newLocale)
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("epoch-locale", newLocale)
+    }
   }
 
   const t = (key: TranslationKey): string => {

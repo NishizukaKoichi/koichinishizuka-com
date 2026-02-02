@@ -154,7 +154,7 @@ export function EpochUserDirectory() {
     }
 
     return result
-  }, [searchQuery, profession, region, sortBy, scoutOnly, minRecords, maxRecords])
+  }, [users, searchQuery, profession, region, sortBy, scoutOnly, minRecords, maxRecords])
 
   const totalPages = Math.ceil(filteredAndSortedUsers.length / ITEMS_PER_PAGE)
   const paginatedUsers = filteredAndSortedUsers.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { Settings, Save, Plus, Trash2, AlertTriangle } from "@/components/icons"
 import { Button } from "@/components/ui/button"
@@ -13,29 +13,34 @@ import {
   AlertDescription,
 } from "@/components/ui/alert"
 import { useI18n } from "@/lib/i18n/context"
-import { usePactStore, type MetricDefinition, dataSourceLabels, type DataSourceType } from "@/lib/pact/store"
+import { usePactStore, type MetricDefinition, type DataSourceType, type RoleConfig } from "@/lib/pact/store"
 
 export default function ThresholdEditPage() {
-  const { t } = useI18n()
-  const router = useRouter()
   const params = useParams()
   const roleId = params.roleId as string
   
-  const { roleConfigs, updateRoleConfig } = usePactStore()
+  const { roleConfigs } = usePactStore()
   const roleConfig = roleConfigs.find(r => r.id === roleId)
   
-  const [roleName, setRoleName] = useState("")
-  const [department, setDepartment] = useState("")
-  const [metrics, setMetrics] = useState<MetricDefinition[]>([])
-  const [saving, setSaving] = useState(false)
+  if (!roleConfig) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        役割が見つかりません
+      </div>
+    )
+  }
 
-  useEffect(() => {
-    if (roleConfig) {
-      setRoleName(roleConfig.roleName)
-      setDepartment(roleConfig.department)
-      setMetrics(roleConfig.metrics)
-    }
-  }, [roleConfig])
+  return <ThresholdEditor key={roleConfig.id} roleId={roleId} roleConfig={roleConfig} />
+}
+
+function ThresholdEditor({ roleId, roleConfig }: { roleId: string; roleConfig: RoleConfig }) {
+  const { t } = useI18n()
+  const router = useRouter()
+  const { updateRoleConfig } = usePactStore()
+  const [roleName, setRoleName] = useState(roleConfig.roleName)
+  const [department, setDepartment] = useState(roleConfig.department)
+  const [metrics, setMetrics] = useState<MetricDefinition[]>(roleConfig.metrics)
+  const [saving, setSaving] = useState(false)
 
   const handleSave = () => {
     setSaving(true)
@@ -91,14 +96,6 @@ export default function ThresholdEditPage() {
   }
 
   const totalWeight = metrics.reduce((sum, m) => sum + m.weight, 0)
-
-  if (!roleConfig) {
-    return (
-      <div className="text-center py-12 text-muted-foreground">
-        役割が見つかりません
-      </div>
-    )
-  }
 
   return (
     <div className="space-y-6">

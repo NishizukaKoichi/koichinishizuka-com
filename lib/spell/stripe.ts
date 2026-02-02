@@ -7,8 +7,16 @@ import { recordAuditEvent } from "./audit";
 
 type StripeLedgerRow = {
   stripe_event_id: string;
+  payload_hash: string;
   received_at: string;
   processed_at: string | null;
+};
+
+export type StripeLedgerEntry = {
+  stripeEventId: string;
+  payloadHash: string;
+  receivedAt: string;
+  processedAt?: string;
 };
 
 function hashPayload(payload: string): string {
@@ -51,6 +59,24 @@ export async function listUnprocessedStripeEvents(limit = 50): Promise<string[]>
     [limit]
   );
   return rows.map((row) => row.stripe_event_id);
+}
+
+export async function listStripeLedger(options: { limit?: number } = {}): Promise<StripeLedgerEntry[]> {
+  const limit = options.limit ?? 100;
+  const rows = await query<StripeLedgerRow>(
+    `SELECT stripe_event_id, payload_hash, received_at, processed_at
+     FROM stripe_event_ledger
+     ORDER BY received_at DESC
+     LIMIT $1`,
+    [limit]
+  );
+
+  return rows.map((row) => ({
+    stripeEventId: row.stripe_event_id,
+    payloadHash: row.payload_hash,
+    receivedAt: row.received_at,
+    processedAt: row.processed_at ?? undefined,
+  }));
 }
 
 export async function processStripeEvent(event: Stripe.Event): Promise<void> {

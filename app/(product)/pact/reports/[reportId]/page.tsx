@@ -1,70 +1,167 @@
 "use client"
 
+import { useEffect, useMemo, useState } from "react"
 import { useParams } from "next/navigation"
-import { FileText, Download, Send, Calendar, User, Briefcase, Target, AlertCircle, ArrowRight, ExternalLink } from "@/components/icons"
+import { FileText, Download, Send, Calendar, User, Briefcase, Target, AlertCircle, ArrowRight } from "@/components/icons"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { useI18n } from "@/lib/i18n/context"
+import { useAuth } from "@/lib/auth/context"
 
-// Mock Pact Report data
-const mockPactReport = {
-  id: "report-3",
-  type: "pact_report",
-  status: "generated",
-  generatedAt: "2026-01-15",
-  
-  // Employee info
-  employee: {
-    name: "Alex Thompson",
-    role: "Marketing Specialist",
-    department: "Marketing",
-    hireDate: "2023-06-01",
-  },
-  
-  // Report content (Pact Report specification)
-  content: {
-    roleDefinition: "Marketing Specialist は、マーケティング施策の企画・実行を通じて、リード獲得とブランド認知向上に貢献する役割である。",
-    evaluationPeriod: "2025-07-15 〜 2026-01-15（6ヶ月）",
-    
-    continuationConditions: [
-      "リード獲得数が月間目標の70%以上",
-      "キャンペーン期限遵守率が80%以上",
-      "コンテンツ品質スコアが75点以上",
-    ],
-    
-    costEffectivenessNegativePoint: "2025-11-01",
-    costEffectivenessReason: "リード獲得コストが業界平均の2.3倍に達し、費用対効果がマイナスに転じた。",
-    
-    unmetMetrics: [
-      { name: "リード獲得数", threshold: "70%", actual: "45%", gap: "-25%" },
-      { name: "キャンペーン期限遵守率", threshold: "80%", actual: "52%", gap: "-28%" },
-      { name: "コンテンツ品質スコア", threshold: "75点", actual: "58点", gap: "-17点" },
-    ],
-    
-    improvementConditions: [
-      "リード獲得数を月間目標の70%に回復（現状+25%）",
-      "キャンペーン期限遵守率を80%に改善（現状+28%）",
-      "品質スコアを75点以上に向上（現状+17点）",
-    ],
-    
-    strengths: [
-      "SNSコンテンツの企画力（エンゲージメント率は平均を上回る）",
-      "クリエイティブブリーフの作成能力",
-      "ステークホルダーとのコミュニケーション能力",
-    ],
-    
-    reemploymentSummary: "SNSマーケティングに特化した環境、または少量のキャンペーンを深く掘り下げる役割において、強みを発揮できる可能性がある。大量のキャンペーンを並行管理する環境よりも、集中型の業務形態が適している。",
-  },
+type PactReport = {
+  reportId: string
+  employeeId: string
+  periodStart: string
+  periodEnd: string
+  content: Record<string, unknown>
+  createdAt: string
+  deliveredAt?: string
+}
+
+type Employee = {
+  employeeId: string
+  displayName: string
+  roleId: string
+  hiredAt: string
+}
+
+type ReportType = "salary_adjustment" | "role_continuation" | "pact_report"
+
+type ReportContent = {
+  roleDefinition: string
+  evaluationPeriod: string
+  continuationConditions: string[]
+  costEffectivenessNegativePoint: string
+  costEffectivenessReason: string
+  unmetMetrics: { name: string; threshold: string; actual: string; gap: string }[]
+  improvementConditions: string[]
+  strengths: string[]
+  reemploymentSummary: string
+}
+
+const reportTypeConfig: Record<ReportType, { label: string; badge: string }> = {
+  salary_adjustment: { label: "Salary Adjustment Notice", badge: "text-green-500" },
+  role_continuation: { label: "Role Continuation Notice", badge: "text-blue-500" },
+  pact_report: { label: "Pact Report", badge: "text-red-500" },
 }
 
 export default function PactReportDetailPage() {
   const params = useParams()
   const reportId = params.reportId as string
-  const { t } = useI18n()
+  const { userId } = useAuth()
+  const [report, setReport] = useState<PactReport | null>(null)
+  const [employee, setEmployee] = useState<Employee | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const report = mockPactReport
+  useEffect(() => {
+    if (!userId) {
+      setError("ログインが必要です")
+      setLoading(false)
+      return
+    }
+
+    let cancelled = false
+
+    const load = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const reportRes = await fetch(`/api/v1/pact/reports/${reportId}`, {
+          headers: { "x-user-id": userId },
+        })
+        if (!reportRes.ok) {
+          throw new Error("レポートの取得に失敗しました")
+        }
+        const reportData = (await reportRes.json()) as { report: PactReport }
+
+        const employeeRes = await fetch(`/api/v1/pact/employees/${reportData.report.employeeId}`, {
+          headers: { "x-user-id": userId },
+        })
+        const employeeData = employeeRes.ok
+          ? ((await employeeRes.json()) as { employee: Employee })
+          : null
+
+        if (!cancelled) {
+          setReport(reportData.report)
+          setEmployee(employeeData?.employee ?? null)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "データ取得に失敗しました")
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [reportId, userId])
+
+  const reportType: ReportType = useMemo(() => {
+    const latestState =
+      report && typeof report.content?.latestState === "string"
+        ? (report.content.latestState as string)
+        : "stable"
+    if (latestState === "growth") return "salary_adjustment"
+    if (latestState === "exit") return "pact_report"
+    return "role_continuation"
+  }, [report])
+
+  const normalizedContent: ReportContent | null = useMemo(() => {
+    if (!report) return null
+    const content = report.content ?? {}
+    return {
+      roleDefinition:
+        typeof content.roleDefinition === "string"
+          ? content.roleDefinition
+          : `role:${employee?.roleId ?? "unknown"}`,
+      evaluationPeriod:
+        typeof content.evaluationPeriod === "string"
+          ? content.evaluationPeriod
+          : `${report.periodStart} 〜 ${report.periodEnd}`,
+      continuationConditions: Array.isArray(content.continuationConditions)
+        ? (content.continuationConditions as string[])
+        : ["未設定"],
+      costEffectivenessNegativePoint:
+        typeof content.costEffectivenessNegativePoint === "string"
+          ? content.costEffectivenessNegativePoint
+          : "未設定",
+      costEffectivenessReason:
+        typeof content.costEffectivenessReason === "string"
+          ? content.costEffectivenessReason
+          : "未設定",
+      unmetMetrics: Array.isArray(content.unmetMetrics)
+        ? (content.unmetMetrics as ReportContent["unmetMetrics"])
+        : [],
+      improvementConditions: Array.isArray(content.improvementConditions)
+        ? (content.improvementConditions as string[])
+        : ["未設定"],
+      strengths: Array.isArray(content.strengths)
+        ? (content.strengths as string[])
+        : ["未設定"],
+      reemploymentSummary:
+        typeof content.reemploymentSummary === "string"
+          ? content.reemploymentSummary
+          : "未設定",
+    }
+  }, [report, employee])
+
+  if (loading) {
+    return <div className="text-sm text-muted-foreground">読み込み中...</div>
+  }
+
+  if (error || !report || !normalizedContent) {
+    return <div className="text-sm text-red-500">{error ?? "レポートが見つかりません"}</div>
+  }
+
+  const typeConfig = reportTypeConfig[reportType]
 
   return (
     <div className="space-y-6">
@@ -72,18 +169,18 @@ export default function PactReportDetailPage() {
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <Badge variant="secondary" className="text-red-500">
-              Pact Report
+            <Badge variant="secondary" className={typeConfig.badge}>
+              {typeConfig.label}
             </Badge>
             <Badge variant="outline">
-              {report.status === "generated" ? "生成済み" : "送信済み"}
+              {report.deliveredAt ? "送信済み" : "生成済み"}
             </Badge>
           </div>
           <h1 className="text-2xl font-semibold text-foreground">
-            契約終了レポート
+            {reportType === "pact_report" ? "契約終了レポート" : "レポート詳細"}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            生成日: {report.generatedAt}
+            生成日: {report.createdAt.split("T")[0]}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -106,28 +203,28 @@ export default function PactReportDetailPage() {
               <User className="h-4 w-4 text-muted-foreground" />
               <div>
                 <p className="text-xs text-muted-foreground">被雇用者</p>
-                <p className="font-medium">{report.employee.name}</p>
+                <p className="font-medium">{employee?.displayName ?? report.employeeId}</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
               <Briefcase className="h-4 w-4 text-muted-foreground" />
               <div>
                 <p className="text-xs text-muted-foreground">役割</p>
-                <p className="font-medium">{report.employee.role}</p>
+                <p className="font-medium">{employee?.roleId ?? "role:unknown"}</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
               <Target className="h-4 w-4 text-muted-foreground" />
               <div>
                 <p className="text-xs text-muted-foreground">部門</p>
-                <p className="font-medium">{report.employee.department}</p>
+                <p className="font-medium">未設定</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
               <Calendar className="h-4 w-4 text-muted-foreground" />
               <div>
                 <p className="text-xs text-muted-foreground">入社日</p>
-                <p className="font-medium">{report.employee.hireDate}</p>
+                <p className="font-medium">{employee?.hiredAt?.split("T")[0] ?? "未設定"}</p>
               </div>
             </div>
           </div>
@@ -140,10 +237,10 @@ export default function PactReportDetailPage() {
           <CardTitle className="text-base">役割定義と評価期間</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm text-foreground">{report.content.roleDefinition}</p>
+          <p className="text-sm text-foreground">{normalizedContent.roleDefinition}</p>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Calendar className="h-4 w-4" />
-            <span>評価期間: {report.content.evaluationPeriod}</span>
+            <span>評価期間: {normalizedContent.evaluationPeriod}</span>
           </div>
         </CardContent>
       </Card>
@@ -156,7 +253,7 @@ export default function PactReportDetailPage() {
         </CardHeader>
         <CardContent>
           <ul className="space-y-2">
-            {report.content.continuationConditions.map((condition, index) => (
+            {normalizedContent.continuationConditions.map((condition, index) => (
               <li key={index} className="flex items-start gap-2 text-sm">
                 <span className="text-muted-foreground">・</span>
                 <span>{condition}</span>
@@ -175,8 +272,8 @@ export default function PactReportDetailPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-lg font-medium mb-2">{report.content.costEffectivenessNegativePoint}</p>
-          <p className="text-sm text-muted-foreground">{report.content.costEffectivenessReason}</p>
+          <p className="text-lg font-medium mb-2">{normalizedContent.costEffectivenessNegativePoint}</p>
+          <p className="text-sm text-muted-foreground">{normalizedContent.costEffectivenessReason}</p>
         </CardContent>
       </Card>
 
@@ -186,28 +283,32 @@ export default function PactReportDetailPage() {
           <CardTitle className="text-base">未達だった指標と閾値</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left py-2 font-medium">指標</th>
-                  <th className="text-right py-2 font-medium">閾値</th>
-                  <th className="text-right py-2 font-medium">実績</th>
-                  <th className="text-right py-2 font-medium text-red-500">差分</th>
-                </tr>
-              </thead>
-              <tbody>
-                {report.content.unmetMetrics.map((metric, index) => (
-                  <tr key={index} className="border-b border-border/50">
-                    <td className="py-3">{metric.name}</td>
-                    <td className="py-3 text-right text-muted-foreground">{metric.threshold}</td>
-                    <td className="py-3 text-right">{metric.actual}</td>
-                    <td className="py-3 text-right text-red-500">{metric.gap}</td>
+          {normalizedContent.unmetMetrics.length === 0 ? (
+            <p className="text-sm text-muted-foreground">未設定</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-2 font-medium">指標</th>
+                    <th className="text-right py-2 font-medium">閾値</th>
+                    <th className="text-right py-2 font-medium">実績</th>
+                    <th className="text-right py-2 font-medium text-red-500">差分</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {normalizedContent.unmetMetrics.map((metric, index) => (
+                    <tr key={index} className="border-b border-border/50">
+                      <td className="py-3">{metric.name}</td>
+                      <td className="py-3 text-right text-muted-foreground">{metric.threshold}</td>
+                      <td className="py-3 text-right">{metric.actual}</td>
+                      <td className="py-3 text-right text-red-500">{metric.gap}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -218,7 +319,7 @@ export default function PactReportDetailPage() {
         </CardHeader>
         <CardContent>
           <ul className="space-y-2">
-            {report.content.improvementConditions.map((condition, index) => (
+            {normalizedContent.improvementConditions.map((condition, index) => (
               <li key={index} className="flex items-start gap-2 text-sm">
                 <span className="text-muted-foreground">・</span>
                 <span>{condition}</span>
@@ -241,7 +342,7 @@ export default function PactReportDetailPage() {
         </CardHeader>
         <CardContent>
           <ul className="space-y-2 mb-6">
-            {report.content.strengths.map((strength, index) => (
+            {normalizedContent.strengths.map((strength, index) => (
               <li key={index} className="flex items-start gap-2 text-sm">
                 <span className="text-blue-500">・</span>
                 <span>{strength}</span>
@@ -259,7 +360,7 @@ export default function PactReportDetailPage() {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-foreground leading-relaxed">
-            {report.content.reemploymentSummary}
+            {normalizedContent.reemploymentSummary}
           </p>
         </CardContent>
       </Card>

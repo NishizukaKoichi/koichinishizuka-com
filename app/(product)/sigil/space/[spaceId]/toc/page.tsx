@@ -1,148 +1,125 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
-import { useRouter, useParams } from "next/navigation"
-import { Sparkles, ChevronLeft, ChevronRight, Circle, CheckCircle2 } from "@/components/icons"
+import { useParams, useRouter } from "next/navigation"
+import { BookOpen, ChevronLeft, ArrowRight } from "@/components/icons"
 import { Button } from "@/components/ui/button"
-import { useI18n } from "@/lib/i18n/context"
-import { cn } from "@/lib/utils"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useAuth } from "@/lib/auth/context"
 
-// Mock space data with chapters - matches dashboard
-const mockSpaceData: Record<string, { name: string; chapters: { id: string; title: string }[] }> = {
-  "eng-team": {
-    name: "Engineering Team",
-    chapters: [
-      { id: "prerequisites", title: "術式の前提条件" },
-      { id: "activation", title: "発動条件" },
-      { id: "daily-decisions", title: "日常的に発生する判断" },
-      { id: "done", title: "完了条件（Done定義）" },
-      { id: "boundaries", title: "権限と責任の境界" },
-      { id: "exceptions", title: "例外・逸脱時の扱い" },
-    ],
-  },
-  "design-team": {
-    name: "Design Team",
-    chapters: [
-      { id: "prerequisites", title: "デザイン原則" },
-      { id: "activation", title: "レビュープロセス" },
-      { id: "daily-decisions", title: "フィードバックの扱い" },
-      { id: "done", title: "完了条件" },
-      { id: "exceptions", title: "例外対応" },
-    ],
-  },
-  "sales-team": {
-    name: "Sales Team",
-    chapters: [
-      { id: "prerequisites", title: "営業プロセス" },
-      { id: "activation", title: "価格ポリシー" },
-      { id: "daily-decisions", title: "契約条件" },
-      { id: "exceptions", title: "例外処理" },
-    ],
-  },
+type Space = {
+  spaceId: string
+  title: string
+}
+
+type Chapter = {
+  chapterId: string
+  title: string
+  orderIndex: number
 }
 
 export default function SigilTocPage() {
   const params = useParams()
-  const spaceId = params.spaceId as string
-  const { t } = useI18n()
   const router = useRouter()
-  
-  const space = mockSpaceData[spaceId]
-  const spaceName = space?.name || "Unknown Space"
-  const chapters = space?.chapters || []
-  
-  // Track read status (in real app, this would be persisted)
-  const [readChapters, setReadChapters] = useState<Set<string>>(new Set())
+  const { userId } = useAuth()
+  const spaceId = params.spaceId as string
+  const [space, setSpace] = useState<Space | null>(null)
+  const [chapters, setChapters] = useState<Chapter[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const markAsRead = (chapterId: string) => {
-    setReadChapters(prev => new Set([...prev, chapterId]))
+  useEffect(() => {
+    let cancelled = false
+
+    const load = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const res = await fetch(`/api/v1/sigil/reader/${spaceId}`, {
+          headers: userId ? { "x-user-id": userId } : undefined,
+        })
+        if (!res.ok) {
+          throw new Error("目次の取得に失敗しました")
+        }
+        const data = (await res.json()) as { space: Space; chapters: Chapter[] }
+        if (!cancelled) {
+          setSpace(data.space)
+          setChapters(data.chapters ?? [])
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "データ取得に失敗しました")
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [spaceId, userId])
+
+  if (loading) {
+    return <div className="text-sm text-muted-foreground">読み込み中...</div>
+  }
+
+  if (error || !space) {
+    return <div className="text-sm text-red-500">{error ?? "スペースが見つかりません"}</div>
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="space-y-6">
       {/* Header */}
-      <header className="border-b border-border">
-        <div className="mx-auto flex h-12 max-w-4xl items-center gap-2 px-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => router.back()}
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </Button>
-          <Sparkles className="h-5 w-5 text-amber-500" />
-          <span className="font-semibold text-foreground">{spaceName}</span>
+      <div className="flex items-center gap-3">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => router.back()}
+          className="h-8 w-8"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </Button>
+        <div>
+          <h1 className="text-xl font-semibold text-foreground">{space.title}</h1>
+          <p className="text-sm text-muted-foreground">目次</p>
         </div>
-      </header>
+      </div>
 
-      {/* Content */}
-      <main className="mx-auto max-w-4xl px-4 py-8">
-        <h1 className="text-2xl font-semibold text-foreground mb-2">
-          {t("sigil.toc.title")}
-        </h1>
-        <p className="text-sm text-muted-foreground mb-8">
-          {chapters.length}章 · {readChapters.size}章 {t("sigil.toc.read")}
-        </p>
-
-        {/* Chapter List */}
-        <div className="space-y-2">
-          {chapters.map((chapter, index) => {
-            const isRead = readChapters.has(chapter.id)
-            return (
-              <Link
-                key={chapter.id}
-                href={`/sigil/space/${spaceId}/chapter/${chapter.id}`}
-                onClick={() => markAsRead(chapter.id)}
-                className={cn(
-                  "flex items-center gap-4 rounded-lg border p-4 transition-colors",
-                  isRead 
-                    ? "border-border bg-secondary/30" 
-                    : "border-border hover:border-amber-500/50 hover:bg-secondary/50"
-                )}
+      {/* Table of Contents */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <BookOpen className="h-4 w-4" />
+            章一覧
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {chapters.map((chapter, index) => (
+              <Link 
+                key={chapter.chapterId}
+                href={`/sigil/space/${spaceId}/chapter/${chapter.chapterId}`}
+                className="flex items-center justify-between p-3 rounded-md border border-border hover:border-amber-500/50 hover:bg-muted/50 transition-colors group"
               >
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center">
-                  {isRead ? (
-                    <CheckCircle2 className="h-5 w-5 text-amber-500" />
-                  ) : (
-                    <Circle className="h-5 w-5 text-muted-foreground" />
-                  )}
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-muted-foreground w-6">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <span className="text-sm font-medium group-hover:text-amber-500 transition-colors">
+                    {chapter.title}
+                  </span>
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono text-muted-foreground">
-                      {String(index + 1).padStart(2, "0")}
-                    </span>
-                    <span className={cn(
-                      "font-medium",
-                      isRead ? "text-muted-foreground" : "text-foreground"
-                    )}>
-                      {chapter.title}
-                    </span>
-                  </div>
-                </div>
-                <ChevronRight className={cn(
-                  "h-5 w-5",
-                  isRead ? "text-muted-foreground/50" : "text-muted-foreground"
-                )} />
+                <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-amber-500 transition-colors" />
               </Link>
-            )
-          })}
-        </div>
-
-        {/* Read status indicator */}
-        <div className="mt-8 flex items-center gap-4 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <Circle className="h-4 w-4" />
-            <span>{t("sigil.toc.unread")}</span>
+            ))}
           </div>
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 text-amber-500" />
-            <span>{t("sigil.toc.read")}</span>
-          </div>
-        </div>
-      </main>
+        </CardContent>
+      </Card>
     </div>
   )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { 
   ArrowRight, 
@@ -23,115 +23,155 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { useAuth } from "@/lib/auth/context"
 
-// Mock transitions data
-const mockTransitions = [
-  {
-    id: "tr-001",
-    employeeId: "emp-001",
-    employeeName: "山田太郎",
-    role: "Senior Engineer",
-    from: "Stable",
-    to: "Growth",
-    date: "2026-01-20",
-    triggeredBy: "上位達成閾値を3ヶ月継続達成",
-    metrics: ["コード品質スコア: 92", "期限遵守率: 95"],
-  },
-  {
-    id: "tr-002",
-    employeeId: "emp-002",
-    employeeName: "佐藤花子",
-    role: "Product Manager",
-    from: "Warning",
-    to: "Stable",
-    date: "2026-01-18",
-    triggeredBy: "最低維持閾値を回復",
-    metrics: ["プロジェクト完了率: 82"],
-  },
-  {
-    id: "tr-003",
-    employeeId: "emp-003",
-    employeeName: "鈴木一郎",
-    role: "Designer",
-    from: "Stable",
-    to: "Warning",
-    date: "2026-01-15",
-    triggeredBy: "最低維持閾値を下回る",
-    metrics: ["デザインレビュー承認率: 58"],
-  },
-  {
-    id: "tr-004",
-    employeeId: "emp-004",
-    employeeName: "田中美咲",
-    role: "Sales Representative",
-    from: "Warning",
-    to: "Critical",
-    date: "2026-01-10",
-    triggeredBy: "警告状態が60日継続",
-    metrics: ["成約率: 45", "商談進捗率: 52"],
-  },
-  {
-    id: "tr-005",
-    employeeId: "emp-005",
-    employeeName: "高橋健太",
-    role: "Customer Success",
-    from: "Critical",
-    to: "Exit",
-    date: "2026-01-05",
-    triggeredBy: "危機状態が90日継続、改善なし",
-    metrics: ["顧客満足度: 42", "チャーン率: 15%"],
-  },
-  {
-    id: "tr-006",
-    employeeId: "emp-006",
-    employeeName: "伊藤直樹",
-    role: "Engineer",
-    from: "Growth",
-    to: "Stable",
-    date: "2026-01-03",
-    triggeredBy: "評価期間リセット",
-    metrics: [],
-  },
-]
+type PactState = "growth" | "stable" | "warning" | "critical" | "exit"
 
-const stateConfig = {
-  Growth: { color: "text-green-500", bg: "bg-green-500/10", icon: TrendingUp },
-  Stable: { color: "text-blue-500", bg: "bg-blue-500/10", icon: Minus },
-  Warning: { color: "text-yellow-500", bg: "bg-yellow-500/10", icon: AlertTriangle },
-  Critical: { color: "text-red-500", bg: "bg-red-500/10", icon: TrendingDown },
-  Exit: { color: "text-gray-500", bg: "bg-gray-500/10", icon: XCircle },
+type Transition = {
+  transitionId: string
+  employeeId: string
+  fromState: PactState
+  toState: PactState
+  windowStart: string
+  windowEnd: string
+  triggeredAt: string
+  ruleRef: string
+}
+
+type Employee = {
+  employeeId: string
+  displayName: string
+  roleId: string
+}
+
+type TransitionView = {
+  id: string
+  employeeId: string
+  employeeName: string
+  role: string
+  from: PactState
+  to: PactState
+  date: string
+  triggeredBy: string
+}
+
+const stateConfig: Record<PactState, { color: string; bg: string; icon: typeof TrendingUp }> = {
+  growth: { color: "text-green-500", bg: "bg-green-500/10", icon: TrendingUp },
+  stable: { color: "text-blue-500", bg: "bg-blue-500/10", icon: Minus },
+  warning: { color: "text-yellow-500", bg: "bg-yellow-500/10", icon: AlertTriangle },
+  critical: { color: "text-red-500", bg: "bg-red-500/10", icon: TrendingDown },
+  exit: { color: "text-gray-500", bg: "bg-gray-500/10", icon: XCircle },
 }
 
 type TransitionType = "all" | "positive" | "negative"
 
 export default function TransitionsPage() {
+  const { userId } = useAuth()
   const [searchQuery, setSearchQuery] = useState("")
   const [typeFilter, setTypeFilter] = useState<TransitionType>("all")
+  const [transitions, setTransitions] = useState<TransitionView[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const filteredTransitions = mockTransitions.filter((tr) => {
-    const matchesSearch = 
-      tr.employeeName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      tr.role.toLowerCase().includes(searchQuery.toLowerCase())
-    
-    if (!matchesSearch) return false
+  useEffect(() => {
+    if (!userId) {
+      setError("ログインが必要です")
+      setLoading(false)
+      return
+    }
 
-    if (typeFilter === "positive") {
-      return (
-        (tr.from === "Stable" && tr.to === "Growth") ||
-        (tr.from === "Warning" && tr.to === "Stable") ||
-        (tr.from === "Critical" && tr.to === "Warning")
-      )
+    let cancelled = false
+
+    const load = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const headers = { "x-user-id": userId }
+        const [transitionRes, employeeRes] = await Promise.all([
+          fetch("/api/v1/pact/transitions", { headers }),
+          fetch("/api/v1/pact/employees", { headers }),
+        ])
+
+        if (!transitionRes.ok) {
+          throw new Error("遷移履歴の取得に失敗しました")
+        }
+        if (!employeeRes.ok) {
+          throw new Error("被雇用者の取得に失敗しました")
+        }
+
+        const transitionData = (await transitionRes.json()) as { transitions: Transition[] }
+        const employeeData = (await employeeRes.json()) as { employees: Employee[] }
+
+        const employeeMap = new Map(
+          (employeeData.employees ?? []).map((employee) => [
+            employee.employeeId,
+            employee,
+          ])
+        )
+
+        const mapped: TransitionView[] = (transitionData.transitions ?? []).map((transition) => {
+          const employee = employeeMap.get(transition.employeeId)
+          const triggeredBy = transition.ruleRef
+            ? `rule:${transition.ruleRef}`
+            : `${transition.windowStart} → ${transition.windowEnd}`
+
+          return {
+            id: transition.transitionId,
+            employeeId: transition.employeeId,
+            employeeName: employee?.displayName ?? transition.employeeId,
+            role: employee?.roleId ?? "role:unknown",
+            from: transition.fromState,
+            to: transition.toState,
+            date: transition.triggeredAt.split("T")[0],
+            triggeredBy,
+          }
+        })
+
+        if (!cancelled) {
+          setTransitions(mapped)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "データ取得に失敗しました")
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
     }
-    if (typeFilter === "negative") {
-      return (
-        (tr.from === "Growth" && tr.to === "Stable") ||
-        (tr.from === "Stable" && tr.to === "Warning") ||
-        (tr.from === "Warning" && tr.to === "Critical") ||
-        (tr.from === "Critical" && tr.to === "Exit")
-      )
+
+    void load()
+    return () => {
+      cancelled = true
     }
-    return true
-  })
+  }, [userId])
+
+  const filteredTransitions = useMemo(() => {
+    const rank: Record<PactState, number> = {
+      growth: 2,
+      stable: 1,
+      warning: 0,
+      critical: -1,
+      exit: -2,
+    }
+
+    return transitions.filter((tr) => {
+      const matchesSearch =
+        tr.employeeName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        tr.role.toLowerCase().includes(searchQuery.toLowerCase())
+
+      if (!matchesSearch) return false
+
+      if (typeFilter === "positive") {
+        return rank[tr.to] > rank[tr.from]
+      }
+      if (typeFilter === "negative") {
+        return rank[tr.to] < rank[tr.from]
+      }
+      return true
+    })
+  }, [transitions, searchQuery, typeFilter])
 
   return (
     <div className="space-y-8">
@@ -172,67 +212,62 @@ export default function TransitionsPage() {
         <CardHeader>
           <CardTitle className="text-base">遷移履歴</CardTitle>
           <CardDescription>
-            {filteredTransitions.length}件の遷移
+            {loading ? "読み込み中..." : `${filteredTransitions.length}件の遷移`}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {filteredTransitions.map((transition) => {
-              const fromState = stateConfig[transition.from as keyof typeof stateConfig]
-              const toState = stateConfig[transition.to as keyof typeof stateConfig]
-              const FromIcon = fromState.icon
-              const ToIcon = toState.icon
+          {error ? (
+            <div className="text-sm text-red-500">{error}</div>
+          ) : (
+            <div className="space-y-4">
+              {filteredTransitions.map((transition) => {
+                const fromState = stateConfig[transition.from]
+                const toState = stateConfig[transition.to]
+                const FromIcon = fromState.icon
+                const ToIcon = toState.icon
 
-              return (
-                <div 
-                  key={transition.id}
-                  className="p-4 rounded-md border border-border hover:border-violet-500/50 transition-colors"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex items-start gap-4">
-                      <div className="text-sm text-muted-foreground w-24 shrink-0">
-                        {transition.date}
+                return (
+                  <div 
+                    key={transition.id}
+                    className="p-4 rounded-md border border-border hover:border-violet-500/50 transition-colors"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-start gap-4">
+                        <div className="text-sm text-muted-foreground w-24 shrink-0">
+                          {transition.date}
+                        </div>
+                        <div>
+                          <Link 
+                            href={`/pact/employees/${transition.employeeId}`}
+                            className="font-medium hover:text-violet-500 transition-colors"
+                          >
+                            {transition.employeeName}
+                          </Link>
+                          <p className="text-sm text-muted-foreground">{transition.role}</p>
+                        </div>
                       </div>
-                      <div>
-                        <Link 
-                          href={`/pact/employees/${transition.employeeId}`}
-                          className="font-medium hover:text-violet-500 transition-colors"
-                        >
-                          {transition.employeeName}
-                        </Link>
-                        <p className="text-sm text-muted-foreground">{transition.role}</p>
+                      <div className="flex items-center gap-3">
+                        <Badge variant="outline" className={`gap-1 ${fromState.color}`}>
+                          <FromIcon className="h-3 w-3" />
+                          {transition.from}
+                        </Badge>
+                        <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                        <Badge variant="outline" className={`gap-1 ${toState.color}`}>
+                          <ToIcon className="h-3 w-3" />
+                          {transition.to}
+                        </Badge>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <Badge variant="outline" className={`gap-1 ${fromState.color}`}>
-                        <FromIcon className="h-3 w-3" />
-                        {transition.from}
-                      </Badge>
-                      <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                      <Badge variant="outline" className={`gap-1 ${toState.color}`}>
-                        <ToIcon className="h-3 w-3" />
-                        {transition.to}
-                      </Badge>
+                    <div className="mt-3 pl-28 sm:pl-28">
+                      <p className="text-sm text-muted-foreground">
+                        {transition.triggeredBy}
+                      </p>
                     </div>
                   </div>
-                  <div className="mt-3 pl-28 sm:pl-28">
-                    <p className="text-sm text-muted-foreground">
-                      {transition.triggeredBy}
-                    </p>
-                    {transition.metrics.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {transition.metrics.map((metric, idx) => (
-                          <Badge key={idx} variant="secondary" className="text-xs">
-                            {metric}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

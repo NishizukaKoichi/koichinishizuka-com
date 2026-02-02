@@ -4,13 +4,14 @@ import { useEffect, useState } from "react"
 import { WifiOff } from "@/components/icons"
 
 export function EpochOfflineBanner() {
-  const [isOffline, setIsOffline] = useState(false)
+  const [isOffline, setIsOffline] = useState(() => {
+    if (typeof navigator === "undefined") return false
+    return !navigator.onLine
+  })
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false)
     const handleOffline = () => setIsOffline(true)
-
-    setIsOffline(!navigator.onLine)
 
     window.addEventListener("online", handleOnline)
     window.addEventListener("offline", handleOffline)

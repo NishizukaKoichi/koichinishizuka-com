@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   Shield,
   Search,
@@ -41,75 +41,20 @@ import {
 } from "@/components/ui/select"
 import { useI18n } from "@/lib/i18n/context"
 
-type Entitlement = {
-  id: string
-  user_id: string
-  product_id: string
-  product_name: string
-  granted_at: string
-  expires_at: string | null
-  source: "webhook" | "manual" | "reconcile"
-  status: "active" | "expired" | "revoked"
+type SpellSummary = {
+  spellId: string
+  name: string
 }
 
-const mockEntitlements: Entitlement[] = [
-  {
-    id: "ent_001",
-    user_id: "user_abc123",
-    product_id: "prod_001",
-    product_name: "Pro Plan",
-    granted_at: "2026-01-01T00:00:00Z",
-    expires_at: "2026-02-01T00:00:00Z",
-    source: "webhook",
-    status: "active",
-  },
-  {
-    id: "ent_002",
-    user_id: "user_def456",
-    product_id: "prod_001",
-    product_name: "Pro Plan",
-    granted_at: "2025-12-15T00:00:00Z",
-    expires_at: "2026-01-15T00:00:00Z",
-    source: "webhook",
-    status: "active",
-  },
-  {
-    id: "ent_003",
-    user_id: "user_ghi789",
-    product_id: "prod_003",
-    product_name: "CLI Tool Lifetime",
-    granted_at: "2025-11-20T00:00:00Z",
-    expires_at: null,
-    source: "webhook",
-    status: "active",
-  },
-  {
-    id: "ent_004",
-    user_id: "user_jkl012",
-    product_id: "prod_002",
-    product_name: "Starter Plan",
-    granted_at: "2025-10-01T00:00:00Z",
-    expires_at: "2025-11-01T00:00:00Z",
-    source: "manual",
-    status: "expired",
-  },
-  {
-    id: "ent_005",
-    user_id: "user_mno345",
-    product_id: "prod_001",
-    product_name: "Pro Plan",
-    granted_at: "2025-09-01T00:00:00Z",
-    expires_at: "2025-10-01T00:00:00Z",
-    source: "webhook",
-    status: "revoked",
-  },
-]
-
-const mockProducts = [
-  { id: "prod_001", name: "Pro Plan" },
-  { id: "prod_002", name: "Starter Plan" },
-  { id: "prod_003", name: "CLI Tool Lifetime" },
-]
+type Entitlement = {
+  entitlementId: string
+  spellId: string
+  userIdentifier: string
+  status: "active" | "revoked"
+  grantedAt: string
+  revokedAt?: string
+  sourceEventId?: string
+}
 
 export function SpellEntitlements() {
   const { t } = useI18n()
@@ -117,15 +62,76 @@ export function SpellEntitlements() {
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [isGrantDialogOpen, setIsGrantDialogOpen] = useState(false)
   const [isReconcileDialogOpen, setIsReconcileDialogOpen] = useState(false)
+  const [entitlements, setEntitlements] = useState<Entitlement[]>([])
+  const [spells, setSpells] = useState<SpellSummary[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [grantUserId, setGrantUserId] = useState("")
+  const [grantSpellId, setGrantSpellId] = useState("")
 
-  const filteredEntitlements = mockEntitlements.filter((ent) => {
-    const matchesSearch =
-      ent.user_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ent.product_name.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesStatus =
-      statusFilter === "all" || ent.status === statusFilter
-    return matchesSearch && matchesStatus
-  })
+  const spellNameMap = useMemo(() => {
+    return spells.reduce<Record<string, string>>((acc, spell) => {
+      acc[spell.spellId] = spell.name
+      return acc
+    }, {})
+  }, [spells])
+
+  const load = async () => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const [spellsRes, entitlementsRes] = await Promise.all([
+        fetch("/api/v1/spell/spells"),
+        fetch("/api/v1/spell/entitlements"),
+      ])
+
+      if (!spellsRes.ok) {
+        throw new Error("Spellの取得に失敗しました")
+      }
+      if (!entitlementsRes.ok) {
+        throw new Error("Entitlementの取得に失敗しました")
+      }
+
+      const spellsData = (await spellsRes.json()) as {
+        spells: Array<{ spellId: string; name: string }>
+      }
+      const entitlementsData = (await entitlementsRes.json()) as {
+        entitlements: Array<{
+          entitlementId: string
+          spellId: string
+          userIdentifier: string
+          status: "active" | "revoked"
+          grantedAt: string
+          revokedAt?: string
+          sourceEventId?: string
+        }>
+      }
+
+      setSpells(spellsData.spells ?? [])
+      setEntitlements(entitlementsData.entitlements ?? [])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "データ取得に失敗しました")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void load()
+  }, [])
+
+  const filteredEntitlements = useMemo(() => {
+    return entitlements.filter((ent) => {
+      const spellName = spellNameMap[ent.spellId] ?? ent.spellId
+      const matchesSearch =
+        ent.userIdentifier.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        spellName.toLowerCase().includes(searchQuery.toLowerCase())
+      const matchesStatus =
+        statusFilter === "all" || ent.status === statusFilter
+      return matchesSearch && matchesStatus
+    })
+  }, [entitlements, searchQuery, statusFilter, spellNameMap])
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("ja-JP", {
@@ -146,13 +152,6 @@ export function SpellEntitlements() {
           color: "text-spell-primary",
           bgColor: "bg-spell-primary/10",
         }
-      case "expired":
-        return {
-          label: "期限切れ",
-          icon: Clock,
-          color: "text-muted-foreground",
-          bgColor: "bg-muted",
-        }
       case "revoked":
         return {
           label: "剥奪済み",
@@ -170,16 +169,78 @@ export function SpellEntitlements() {
     }
   }
 
-  const getSourceLabel = (source: string) => {
-    switch (source) {
-      case "webhook":
-        return "Webhook"
-      case "manual":
-        return "手動"
-      case "reconcile":
-        return "Reconcile"
-      default:
-        return source
+  const getSourceLabel = (sourceEventId?: string) => {
+    if (!sourceEventId) return "Manual"
+    if (sourceEventId.startsWith("evt_")) return "Webhook"
+    return "Manual"
+  }
+
+  const handleReconcile = async () => {
+    setIsSubmitting(true)
+    try {
+      const res = await fetch("/api/v1/spell/reconcile", { method: "POST" })
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null)
+        throw new Error(payload?.error ?? "Reconcileに失敗しました")
+      }
+      await load()
+      setIsReconcileDialogOpen(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Reconcileに失敗しました")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleGrant = async () => {
+    if (!grantUserId || !grantSpellId) return
+    setIsSubmitting(true)
+    try {
+      const res = await fetch("/api/v1/spell/entitlements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          spell_id: grantSpellId,
+          user_identifier: grantUserId,
+          status: "active",
+        }),
+      })
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null)
+        throw new Error(payload?.error ?? "Entitlementの付与に失敗しました")
+      }
+      await load()
+      setGrantUserId("")
+      setGrantSpellId("")
+      setIsGrantDialogOpen(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Entitlementの付与に失敗しました")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleRevoke = async (entitlement: Entitlement) => {
+    setIsSubmitting(true)
+    try {
+      const res = await fetch("/api/v1/spell/entitlements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          spell_id: entitlement.spellId,
+          user_identifier: entitlement.userIdentifier,
+          status: "revoked",
+        }),
+      })
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null)
+        throw new Error(payload?.error ?? "Entitlementの剥奪に失敗しました")
+      }
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Entitlementの剥奪に失敗しました")
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -215,7 +276,7 @@ export function SpellEntitlements() {
                   <p className="mb-2">この操作は以下を行います:</p>
                   <ul className="list-disc list-inside space-y-1">
                     <li>Stripeのサブスクリプション状態を確認</li>
-                    <li>期限切れのEntitlementを自動更新</li>
+                    <li>Entitlementを最新化</li>
                     <li>不整合があれば修正</li>
                     <li>すべての変更は監査ログに記録</li>
                   </ul>
@@ -225,7 +286,7 @@ export function SpellEntitlements() {
                 <Button variant="outline" onClick={() => setIsReconcileDialogOpen(false)} className="bg-transparent">
                   キャンセル
                 </Button>
-                <Button onClick={() => setIsReconcileDialogOpen(false)}>
+                <Button onClick={handleReconcile} disabled={isSubmitting}>
                   Reconcileを実行
                 </Button>
               </DialogFooter>
@@ -249,36 +310,34 @@ export function SpellEntitlements() {
               <div className="py-4 space-y-4">
                 <div className="space-y-2">
                   <Label>{t("spell.entitlements.user_id")}</Label>
-                  <Input placeholder="user_..." className="font-mono" />
+                  <Input
+                    placeholder="user_..."
+                    className="font-mono"
+                    value={grantUserId}
+                    onChange={(event) => setGrantUserId(event.target.value)}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>{t("spell.entitlements.product")}</Label>
-                  <Select>
+                  <Select value={grantSpellId} onValueChange={setGrantSpellId}>
                     <SelectTrigger>
-                      <SelectValue placeholder="商品を選択" />
+                      <SelectValue placeholder="Spellを選択" />
                     </SelectTrigger>
                     <SelectContent>
-                      {mockProducts.map((product) => (
-                        <SelectItem key={product.id} value={product.id}>
-                          {product.name}
+                      {spells.map((spell) => (
+                        <SelectItem key={spell.spellId} value={spell.spellId}>
+                          {spell.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>{t("spell.entitlements.expires_at")}（任意）</Label>
-                  <Input type="datetime-local" />
-                  <p className="text-xs text-muted-foreground">
-                    空の場合は無期限
-                  </p>
                 </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsGrantDialogOpen(false)} className="bg-transparent">
                   キャンセル
                 </Button>
-                <Button onClick={() => setIsGrantDialogOpen(false)}>
+                <Button onClick={handleGrant} disabled={isSubmitting || !grantUserId || !grantSpellId}>
                   権利を付与
                 </Button>
               </DialogFooter>
@@ -286,6 +345,8 @@ export function SpellEntitlements() {
           </Dialog>
         </div>
       </div>
+
+      {error && <div className="text-sm text-destructive mb-4">{error}</div>}
 
       {/* Search & Filter */}
       <div className="flex items-center gap-4 mb-6">
@@ -306,14 +367,17 @@ export function SpellEntitlements() {
           <SelectContent>
             <SelectItem value="all">すべて</SelectItem>
             <SelectItem value="active">有効</SelectItem>
-            <SelectItem value="expired">期限切れ</SelectItem>
             <SelectItem value="revoked">剥奪済み</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       {/* Entitlements Table */}
-      {filteredEntitlements.length === 0 ? (
+      {isLoading ? (
+        <div className="rounded-lg border border-border bg-card p-12 text-center text-sm text-muted-foreground">
+          読み込み中...
+        </div>
+      ) : filteredEntitlements.length === 0 ? (
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <Shield className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
           <h3 className="text-lg font-medium text-foreground mb-2">
@@ -355,18 +419,19 @@ export function SpellEntitlements() {
               {filteredEntitlements.map((ent) => {
                 const statusInfo = getStatusInfo(ent.status)
                 const StatusIcon = statusInfo.icon
+                const spellName = spellNameMap[ent.spellId] ?? ent.spellId
                 return (
                   <tr
-                    key={ent.id}
+                    key={ent.entitlementId}
                     className="hover:bg-accent/30 transition-colors"
                   >
                     <td className="px-4 py-4">
                       <code className="rounded bg-muted px-2 py-1 text-xs font-mono text-foreground">
-                        {ent.user_id}
+                        {ent.userIdentifier}
                       </code>
                     </td>
                     <td className="px-4 py-4 text-foreground">
-                      {ent.product_name}
+                      {spellName}
                     </td>
                     <td className="px-4 py-4">
                       <Badge
@@ -378,14 +443,14 @@ export function SpellEntitlements() {
                       </Badge>
                     </td>
                     <td className="px-4 py-4 text-sm text-muted-foreground font-mono">
-                      {formatDate(ent.granted_at)}
+                      {formatDate(ent.grantedAt)}
                     </td>
                     <td className="px-4 py-4 text-sm text-muted-foreground font-mono">
-                      {ent.expires_at ? formatDate(ent.expires_at) : "無期限"}
+                      {ent.revokedAt ? formatDate(ent.revokedAt) : "—"}
                     </td>
                     <td className="px-4 py-4">
                       <Badge variant="outline" className="text-xs">
-                        {getSourceLabel(ent.source)}
+                        {getSourceLabel(ent.sourceEventId)}
                       </Badge>
                     </td>
                     <td className="px-4 py-4 text-right">
@@ -397,12 +462,12 @@ export function SpellEntitlements() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           {ent.status === "active" && (
-                            <DropdownMenuItem className="text-destructive">
+                            <DropdownMenuItem className="text-destructive" onClick={() => handleRevoke(ent)}>
                               <Trash2 className="mr-2 h-4 w-4" />
                               {t("spell.entitlements.revoke")}
                             </DropdownMenuItem>
                           )}
-                          <DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setIsReconcileDialogOpen(true)}>
                             <RefreshCw className="mr-2 h-4 w-4" />
                             {t("spell.entitlements.reconcile")}
                           </DropdownMenuItem>
@@ -422,14 +487,7 @@ export function SpellEntitlements() {
         <h3 className="font-medium text-foreground mb-3">API Check Example</h3>
         <div className="rounded border border-border bg-muted/30 p-4 font-mono text-xs overflow-x-auto">
           <pre className="text-muted-foreground">
-            {`GET /v1/entitlements/check?user_id=user_abc123&product_id=prod_001
-
-Response:
-{
-  "entitled": true,
-  "product_id": "prod_001",
-  "expires_at": "2026-02-01T00:00:00Z"
-}`}
+            {`POST /api/v1/spell/check\n\nRequest:\n{\n  "spell_id": "spell_...",\n  "runtime_id": "runtime_...",\n  "user_identifier": "user_...",\n  "requested_scope": "scope_key"\n}`}
           </pre>
         </div>
       </div>

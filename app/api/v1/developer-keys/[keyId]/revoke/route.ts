@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { revokeDeveloperKey } from "../../../../../../lib/platform/keys";
+import { getRequestUserId } from "../../../../../../lib/platform/request";
 
 export const runtime = "nodejs";
 
@@ -8,7 +9,7 @@ export async function POST(
   context: { params: { keyId: string } }
 ) {
   const body = await request.json().catch(() => ({}));
-  const ownerUserId = body?.owner_user_id as string | undefined;
+  const ownerUserId = (body?.owner_user_id as string | undefined) ?? getRequestUserId(request);
   const keyId = context.params.keyId;
 
   if (!ownerUserId || !keyId) {

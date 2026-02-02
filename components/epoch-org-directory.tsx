@@ -419,7 +419,7 @@ export function EpochOrgDirectory() {
     })
 
     return result
-  }, [searchQuery, filterIndustry, filterLocation, minMembers, sortBy, sortDesc])
+  }, [organizations, searchQuery, filterIndustry, filterLocation, minMembers, sortBy, sortDesc])
 
   // Group organizations by industry for category view
   const groupedOrgs = useMemo(() => {

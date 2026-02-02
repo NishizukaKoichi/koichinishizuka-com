@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { useI18n } from "@/lib/i18n/context"
 import { ensurePersonId } from "@/lib/talisman/client"
+import { useAuth } from "@/lib/auth/context"
 
 type CredentialType =
   | "email_magiclink"
@@ -42,6 +43,7 @@ type CredentialItem = {
 export default function TalismanLoginPage() {
   const { t } = useI18n()
   const router = useRouter()
+  const { login } = useAuth()
   
   const [selectedCredentials, setSelectedCredentials] = useState<string[]>([])
   const [step, setStep] = useState<"select" | "verify">("select")
@@ -109,13 +111,25 @@ export default function TalismanLoginPage() {
   }, [])
 
   const handleVerify = async () => {
+    if (!canProceed) return
     setVerifying(true)
-    
-    // Mock: 認証処理
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    // ログイン成功
-    router.push("/talisman")
+    setError(null)
+
+    try {
+      const personId = await ensurePersonId()
+      const response = await fetch(`/api/v1/talisman/persons/${encodeURIComponent(personId)}/signal`)
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        throw new Error(payload?.error || "認証に失敗しました")
+      }
+      login()
+      router.push("/talisman")
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "認証に失敗しました"
+      setError(message)
+    } finally {
+      setVerifying(false)
+    }
   }
 
   const handleProceedToVerify = () => {

@@ -1,8 +1,8 @@
 "use client"
 
+import { useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
-import { useState } from "react"
 import { 
   ChevronLeft, 
   BookOpen, 
@@ -14,37 +14,90 @@ import {
 } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { useI18n } from "@/lib/i18n/context"
+import { useAuth } from "@/lib/auth/context"
 
-// Mock data
-const mockSpace = {
-  id: "eng-team",
-  name: "Engineering Team",
-  purpose: "プロダクト開発を通じて価値を届ける",
-  totalChapters: 6,
-  estimatedTime: "約15分",
+type Space = {
+  spaceId: string
+  title: string
+  purpose: string
 }
 
-const mockChapters = [
-  { id: "prerequisites", title: "術式の前提条件", read: true, readAt: "2026-01-20" },
-  { id: "activation", title: "発動条件", read: true, readAt: "2026-01-20" },
-  { id: "daily-decisions", title: "日常的に発生する判断", read: true, readAt: "2026-01-21" },
-  { id: "done", title: "完了条件（Done定義）", read: false, readAt: null },
-  { id: "boundaries", title: "権限と責任の境界", read: false, readAt: null },
-  { id: "exceptions", title: "例外・逸脱時の扱い", read: false, readAt: null },
-]
+type Chapter = {
+  chapterId: string
+  title: string
+  orderIndex: number
+  createdAt: string
+}
+
+type ChapterView = Chapter & { read: boolean; readAt: string | null }
 
 export default function ReaderProgressPage() {
   const params = useParams()
   const router = useRouter()
   const { t } = useI18n()
+  const { userId } = useAuth()
   const spaceId = params.spaceId as string
 
-  const readCount = mockChapters.filter(c => c.read).length
-  const progress = Math.round((readCount / mockChapters.length) * 100)
-  const nextChapter = mockChapters.find(c => !c.read)
+  const [space, setSpace] = useState<Space | null>(null)
+  const [chapters, setChapters] = useState<ChapterView[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+
+    const load = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const res = await fetch(`/api/v1/sigil/reader/${spaceId}`, {
+          headers: userId ? { "x-user-id": userId } : undefined,
+        })
+        if (!res.ok) {
+          throw new Error("スペースの取得に失敗しました")
+        }
+        const data = (await res.json()) as { space: Space; chapters: Chapter[] }
+        const mappedChapters: ChapterView[] = (data.chapters ?? []).map((chapter) => ({
+          ...chapter,
+          read: false,
+          readAt: null,
+        }))
+
+        if (!cancelled) {
+          setSpace(data.space)
+          setChapters(mappedChapters)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "データ取得に失敗しました")
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [spaceId, userId])
+
+  const readCount = useMemo(() => chapters.filter((chapter) => chapter.read).length, [chapters])
+  const progress = chapters.length > 0 ? Math.round((readCount / chapters.length) * 100) : 0
+  const nextChapter = chapters.find((chapter) => !chapter.read)
+  const estimatedMinutes = chapters.length * 3
+
+  if (loading) {
+    return <div className="text-sm text-muted-foreground">読み込み中...</div>
+  }
+
+  if (error || !space) {
+    return <div className="text-sm text-red-500">{error ?? "スペースが見つかりません"}</div>
+  }
 
   return (
     <div className="space-y-6">
@@ -60,9 +113,9 @@ export default function ReaderProgressPage() {
         </Button>
         <div className="flex-1">
           <h1 className="text-xl font-semibold text-foreground">
-            {mockSpace.name}
+            {space.title}
           </h1>
-          <p className="text-sm text-muted-foreground">{mockSpace.purpose}</p>
+          <p className="text-sm text-muted-foreground">{space.purpose}</p>
         </div>
       </div>
 
@@ -96,11 +149,11 @@ export default function ReaderProgressPage() {
             <div className="flex-1 space-y-3">
               <div className="flex items-center gap-2 text-sm">
                 <BookOpen className="h-4 w-4 text-muted-foreground" />
-                <span>{readCount} / {mockChapters.length} 章完了</span>
+                <span>{readCount} / {chapters.length} 章完了</span>
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <Clock className="h-4 w-4 text-muted-foreground" />
-                <span>推定残り時間: {mockSpace.estimatedTime}</span>
+                <span>推定残り時間: 約{estimatedMinutes}分</span>
               </div>
               {progress === 100 ? (
                 <Badge className="bg-green-500/10 text-green-500 border-green-500/20">
@@ -110,7 +163,7 @@ export default function ReaderProgressPage() {
               ) : (
                 <Badge variant="secondary">
                   <Target className="h-3 w-3 mr-1" />
-                  読了まであと {mockChapters.length - readCount} 章
+                  読了まであと {chapters.length - readCount} 章
                 </Badge>
               )}
             </div>
@@ -127,7 +180,7 @@ export default function ReaderProgressPage() {
                 <p className="text-xs text-amber-500 font-medium mb-1">続きを読む</p>
                 <p className="font-medium text-foreground">{nextChapter.title}</p>
               </div>
-              <Link href={`/sigil/space/${spaceId}/chapter/${nextChapter.id}`}>
+              <Link href={`/sigil/space/${spaceId}/chapter/${nextChapter.chapterId}`}>
                 <Button className="gap-2">
                   読む
                   <ChevronRight className="h-4 w-4" />
@@ -146,10 +199,10 @@ export default function ReaderProgressPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-1">
-            {mockChapters.map((chapter, index) => (
+            {chapters.map((chapter, index) => (
               <Link
-                key={chapter.id}
-                href={`/sigil/space/${spaceId}/chapter/${chapter.id}`}
+                key={chapter.chapterId}
+                href={`/sigil/space/${spaceId}/chapter/${chapter.chapterId}`}
                 className="flex items-center gap-3 p-3 rounded-md hover:bg-muted/50 transition-colors group"
               >
                 {chapter.read ? (

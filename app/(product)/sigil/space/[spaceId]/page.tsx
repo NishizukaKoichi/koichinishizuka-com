@@ -1,56 +1,33 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter, useParams } from "next/navigation"
 import { Sparkles, Target, Scale, CheckCircle, Shield, ArrowRight, ChevronLeft, BookOpen } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useI18n } from "@/lib/i18n/context"
+import { useAuth } from "@/lib/auth/context"
 
-// Mock space data - IDs match dashboard and spaces list
-const mockSpaceData = {
-  "eng-team": {
-    name: "Engineering Team",
-    purpose: "プロダクト開発を通じて価値を届ける",
-    decisions: "コードレビュー承認、リリース判断、技術選定、障害対応優先度",
-    doneStrictness: "厳格（曖昧さを許容しない）",
-    responsibility: "開発チーム全員に適用。外部委託者も同様の術式下で活動する。",
-    chapters: [
-      { id: "prerequisites", title: "術式の前提条件" },
-      { id: "activation", title: "発動条件" },
-      { id: "daily-decisions", title: "日常的に発生する判断" },
-      { id: "done", title: "完了条件（Done定義）" },
-      { id: "boundaries", title: "権限と責任の境界" },
-      { id: "exceptions", title: "例外・逸脱時の扱い" },
-    ],
-  },
-  "design-team": {
-    name: "Design Team",
-    purpose: "ユーザー体験を設計する",
-    decisions: "デザインシステムの更新、UIパターンの選定、ユーザビリティの判断",
-    doneStrictness: "標準（一定の裁量を許容）",
-    responsibility: "デザインチーム全員に適用。",
-    chapters: [
-      { id: "prerequisites", title: "デザイン原則" },
-      { id: "activation", title: "レビュープロセス" },
-      { id: "daily-decisions", title: "フィードバックの扱い" },
-      { id: "done", title: "完了条件" },
-      { id: "exceptions", title: "例外対応" },
-    ],
-  },
-  "sales-team": {
-    name: "Sales Team",
-    purpose: "顧客との信頼関係を構築する",
-    decisions: "商談の進め方、価格交渉の範囲、契約条件の調整",
-    doneStrictness: "厳格（契約条件は明確に）",
-    responsibility: "営業チーム全員に適用。",
-    chapters: [
-      { id: "prerequisites", title: "営業プロセス" },
-      { id: "activation", title: "価格ポリシー" },
-      { id: "daily-decisions", title: "契約条件" },
-      { id: "exceptions", title: "例外処理" },
-    ],
-  },
+type Space = {
+  spaceId: string
+  title: string
+  purpose: string
+}
+
+type Chapter = {
+  chapterId: string
+  title: string
+  orderIndex: number
+}
+
+type SpaceView = {
+  name: string
+  purpose: string
+  decisions: string
+  doneStrictness: string
+  responsibility: string
+  chapters: { id: string; title: string }[]
 }
 
 const entryItems = [
@@ -64,13 +41,67 @@ export default function SigilSpacePage() {
   const params = useParams()
   const spaceId = params.spaceId as string
   const { t } = useI18n()
+  const { userId } = useAuth()
   const router = useRouter()
-  const space = mockSpaceData[spaceId as keyof typeof mockSpaceData]
+  const [space, setSpace] = useState<SpaceView | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  if (!space) {
+  useEffect(() => {
+    let cancelled = false
+
+    const load = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const res = await fetch(`/api/v1/sigil/reader/${spaceId}`, {
+          headers: userId ? { "x-user-id": userId } : undefined,
+        })
+        if (!res.ok) {
+          throw new Error("スペースの取得に失敗しました")
+        }
+        const data = (await res.json()) as { space: Space; chapters: Chapter[] }
+
+        const view: SpaceView = {
+          name: data.space.title,
+          purpose: data.space.purpose,
+          decisions: "未設定",
+          doneStrictness: "未設定",
+          responsibility: "未設定",
+          chapters: (data.chapters ?? []).map((chapter) => ({
+            id: chapter.chapterId,
+            title: chapter.title,
+          })),
+        }
+
+        if (!cancelled) {
+          setSpace(view)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "データ取得に失敗しました")
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [spaceId, userId])
+
+  if (loading) {
+    return <div className="text-sm text-muted-foreground">読み込み中...</div>
+  }
+
+  if (error || !space) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
-        <p className="text-muted-foreground">Space not found</p>
+        <p className="text-muted-foreground">{error ?? "Space not found"}</p>
       </div>
     )
   }
@@ -98,7 +129,7 @@ export default function SigilSpacePage() {
         <div className="space-y-6">
           {entryItems.map((item, index) => {
             const Icon = item.icon
-            const value = space[item.dataKey as keyof typeof space]
+            const value = space[item.dataKey as keyof SpaceView]
             return (
               <Card key={index}>
                 <CardContent className="pt-6">

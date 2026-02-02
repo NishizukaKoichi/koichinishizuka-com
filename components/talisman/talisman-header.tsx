@@ -2,7 +2,6 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
 import { Shield, LayoutDashboard, Key, History, Settings, Plug, ChevronLeft, CreditCard, LogOut } from "@/components/icons"
 import { useI18n } from "@/lib/i18n/context"
 import { Button } from "@/components/ui/button"
@@ -22,21 +21,17 @@ export function TalismanHeader() {
   const { t } = useI18n()
   const pathname = usePathname()
   const router = useRouter()
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const isLoggedIn = Boolean(getStoredPersonId())
 
   const isLandingPage = pathname === "/talisman/landing"
-  
-  // Landing/Spec page doesn't need this header - GlobalNav is enough
-  if (isLandingPage) {
-    return null
-  }
 
   const isHomePage = pathname === "/talisman"
   const showBackButton = !isHomePage
 
-  useEffect(() => {
-    setIsLoggedIn(Boolean(getStoredPersonId()))
-  }, [pathname])
+  // Landing/Spec page doesn't need this header - GlobalNav is enough
+  if (isLandingPage) {
+    return null
+  }
 
   const handleBack = () => {
     router.back()
@@ -69,7 +64,6 @@ export function TalismanHeader() {
               size="sm" 
               onClick={() => {
                 clearStoredPersonId()
-                setIsLoggedIn(false)
                 router.push("/talisman/landing")
               }}
               className="text-muted-foreground hover:text-foreground gap-1"

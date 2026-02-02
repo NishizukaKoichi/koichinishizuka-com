@@ -1,45 +1,34 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Plus, FolderOpen, Users, FileText, Edit, Eye, Globe, Building2, Lock } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useI18n } from "@/lib/i18n/context"
+import { useAuth } from "@/lib/auth/context"
 
-// Mock data for spaces - this would come from a database in a real app
-const mockSpaces = [
-  {
-    id: "eng-team",
-    name: "Engineering Team",
-    purpose: "プロダクト開発を通じて価値を届ける",
-    visibility: "internal" as const,
-    chaptersCount: 6,
-    viewsCount: 543,
-    lastUpdated: "2026-01-20",
-  },
-  {
-    id: "design-team", 
-    name: "Design Team",
-    purpose: "ユーザー体験を設計する",
-    visibility: "public" as const,
-    chaptersCount: 5,
-    viewsCount: 321,
-    lastUpdated: "2026-01-18",
-  },
-  {
-    id: "sales-team",
-    name: "Sales Team",
-    purpose: "顧客との信頼関係を構築する",
-    visibility: "private" as const,
-    chaptersCount: 4,
-    viewsCount: 187,
-    lastUpdated: "2026-01-15",
-  },
-]
+type Space = {
+  spaceId: string
+  title: string
+  purpose: string
+  visibility: "public" | "unlisted" | "private"
+  status: "draft" | "final" | "deprecated"
+  createdAt: string
+}
 
-const getVisibilityBadge = (visibility: "public" | "internal" | "private") => {
+type SpaceView = {
+  id: string
+  name: string
+  purpose: string
+  visibility: "public" | "unlisted" | "private"
+  chaptersCount: number
+  viewsCount: number
+  lastUpdated: string
+}
+
+const getVisibilityBadge = (visibility: "public" | "unlisted" | "private") => {
   switch (visibility) {
     case "public":
       return (
@@ -48,11 +37,11 @@ const getVisibilityBadge = (visibility: "public" | "internal" | "private") => {
           公開
         </Badge>
       )
-    case "internal":
+    case "unlisted":
       return (
         <Badge variant="secondary" className="gap-1">
           <Building2 className="h-3 w-3 text-amber-500" />
-          社内限定
+          限定公開
         </Badge>
       )
     case "private":
@@ -67,7 +56,79 @@ const getVisibilityBadge = (visibility: "public" | "internal" | "private") => {
 
 export default function SigilDashboardPage() {
   const { t } = useI18n()
-  const [spaces] = useState(mockSpaces)
+  const { userId } = useAuth()
+  const [spaces, setSpaces] = useState<SpaceView[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!userId) {
+      setError("ログインが必要です")
+      setLoading(false)
+      return
+    }
+
+    let cancelled = false
+
+    const load = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const res = await fetch("/api/v1/sigil/spaces", {
+          headers: { "x-user-id": userId },
+        })
+        if (!res.ok) {
+          throw new Error("スペースの取得に失敗しました")
+        }
+        const data = (await res.json()) as { spaces: Space[] }
+
+        const baseSpaces = data.spaces ?? []
+        const enriched = await Promise.all(
+          baseSpaces.map(async (space) => {
+            let chaptersCount = 0
+            try {
+              const readerRes = await fetch(`/api/v1/sigil/reader/${space.spaceId}`, {
+                headers: { "x-user-id": userId },
+              })
+              if (readerRes.ok) {
+                const readerData = (await readerRes.json()) as { chapters: unknown[] }
+                chaptersCount = readerData.chapters?.length ?? 0
+              }
+            } catch {
+              chaptersCount = 0
+            }
+
+            return {
+              id: space.spaceId,
+              name: space.title,
+              purpose: space.purpose,
+              visibility: space.visibility,
+              chaptersCount,
+              viewsCount: 0,
+              lastUpdated: space.createdAt.split("T")[0],
+            }
+          })
+        )
+
+        if (!cancelled) {
+          setSpaces(enriched)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "データ取得に失敗しました")
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [userId])
 
   return (
     <div className="space-y-8">
@@ -89,13 +150,15 @@ export default function SigilDashboardPage() {
         </Link>
       </div>
 
+      {error && <div className="text-sm text-red-500">{error}</div>}
+
       {/* Spaces Grid */}
       {spaces.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <FolderOpen className="h-12 w-12 text-muted-foreground/50" />
             <p className="mt-4 text-sm text-muted-foreground">
-              {t("sigil.no_spaces")}
+              {loading ? "読み込み中..." : t("sigil.no_spaces")}
             </p>
             <Link href="/sigil/spaces/new">
               <Button className="mt-4 bg-amber-500 hover:bg-amber-600 text-background">

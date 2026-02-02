@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter, useParams } from "next/navigation"
 import { 
@@ -12,8 +12,7 @@ import {
   Calendar,
   Building2,
   Target,
-  CheckCircle2,
-  AlertCircle
+  CheckCircle2
 } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -28,96 +27,123 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { useI18n } from "@/lib/i18n/context"
+import { useAuth } from "@/lib/auth/context"
 
-// Mock data for public space detail
-const mockPublicSpaces: Record<string, {
-  id: string
-  name: string
-  author: string
-  authorOrg: string
+type Space = {
+  spaceId: string
+  title: string
   purpose: string
-  decisions: string[]
-  doneStrictness: "high" | "medium" | "low"
-  responsibility: string
-  chapters: { id: string; title: string; summary: string }[]
-  adoptedCount: number
+  visibility: "public" | "unlisted" | "private"
   createdAt: string
-  updatedAt: string
-  category: string
-}> = {
-  "techcorp-eng": {
-    id: "techcorp-eng",
-    name: "Engineering Onboarding",
-    author: "Tanaka Taro",
-    authorOrg: "TechCorp Inc.",
-    purpose: "新規エンジニアが最初の30日で理解すべき術式を事前開示する",
-    decisions: [
-      "コードレビューの承認基準",
-      "技術的負債の許容範囲",
-      "ドキュメント更新の優先度",
-    ],
-    doneStrictness: "high",
-    responsibility: "エンジニアリングチームに所属する全員",
-    chapters: [
-      { id: "1", title: "術式の前提条件", summary: "この術式が適用される範囲と条件" },
-      { id: "2", title: "発動条件", summary: "術式が発動するトリガーとなる状況" },
-      { id: "3", title: "日常的に発生する判断", summary: "日々の業務で遭遇する判断基準" },
-      { id: "4", title: "完了条件（Done定義）", summary: "タスクが完了と見なされる条件" },
-      { id: "5", title: "権限と責任の境界", summary: "誰が何を決定できるか" },
-      { id: "6", title: "例外・逸脱時の扱い", summary: "術式から外れる場合の対処" },
-    ],
-    adoptedCount: 47,
-    createdAt: "2025-11-01",
-    updatedAt: "2026-01-15",
-    category: "engineering",
-  },
-  "designstudio-ds": {
-    id: "designstudio-ds",
-    name: "Design System Guidelines",
-    author: "Yamada Hanako",
-    authorOrg: "DesignStudio",
-    purpose: "デザインシステムの運用と意思決定の基準を事前開示する",
-    decisions: [
-      "新規コンポーネントの追加基準",
-      "既存コンポーネントの変更プロセス",
-      "例外的なデザインの許容範囲",
-    ],
-    doneStrictness: "medium",
-    responsibility: "デザインチームおよびフロントエンドエンジニア",
-    chapters: [
-      { id: "1", title: "術式の前提条件", summary: "デザインシステムが適用される範囲" },
-      { id: "2", title: "発動条件", summary: "デザイン判断が必要になる状況" },
-      { id: "3", title: "日常的に発生する判断", summary: "コンポーネント選択の基準" },
-      { id: "4", title: "完了条件（Done定義）", summary: "デザインレビューの完了条件" },
-    ],
-    adoptedCount: 23,
-    createdAt: "2025-12-01",
-    updatedAt: "2026-01-10",
-    category: "design",
-  },
 }
 
-const strictnessLabels = {
-  high: { label: "厳格", color: "text-red-500" },
-  medium: { label: "標準", color: "text-amber-500" },
-  low: { label: "柔軟", color: "text-green-500" },
+type Chapter = {
+  chapterId: string
+  title: string
+}
+
+type Analytics = {
+  chapters: number
+  adoptionsAccepted: number
+  adoptionsDeclined: number
 }
 
 export default function SigilExploreDetailPage() {
   const { t } = useI18n()
   const router = useRouter()
   const params = useParams()
+  const { userId } = useAuth()
   const spaceId = params.spaceId as string
   
   const [adoptDialog, setAdoptDialog] = useState(false)
   const [adopted, setAdopted] = useState(false)
+  const [space, setSpace] = useState<Space | null>(null)
+  const [chapters, setChapters] = useState<Chapter[]>([])
+  const [analytics, setAnalytics] = useState<Analytics | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const space = mockPublicSpaces[spaceId] || mockPublicSpaces["techcorp-eng"]
+  useEffect(() => {
+    let cancelled = false
 
-  const handleAdopt = () => {
-    setAdopted(true)
-    setAdoptDialog(false)
+    const load = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const readerRes = await fetch(`/api/v1/sigil/reader/${spaceId}`, {
+          headers: userId ? { "x-user-id": userId } : undefined,
+        })
+        if (!readerRes.ok) {
+          throw new Error("術式の取得に失敗しました")
+        }
+        const readerData = (await readerRes.json()) as { space: Space; chapters: Chapter[] }
+
+        let analyticsData: Analytics | null = null
+        if (userId) {
+          const analyticsRes = await fetch(`/api/v1/sigil/analytics/${spaceId}`, {
+            headers: { "x-user-id": userId },
+          })
+          if (analyticsRes.ok) {
+            const analyticsJson = (await analyticsRes.json()) as { analytics: Analytics }
+            analyticsData = analyticsJson.analytics
+          }
+        }
+
+        if (!cancelled) {
+          setSpace(readerData.space)
+          setChapters(readerData.chapters ?? [])
+          setAnalytics(analyticsData)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "データ取得に失敗しました")
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [spaceId, userId])
+
+  const decisions = useMemo(() => ["未設定"], [])
+  const responsibility = "未設定"
+  const strictnessLabel = "未設定"
+
+  const handleAdopt = async () => {
+    if (!userId) {
+      return
+    }
+    try {
+      const res = await fetch(`/api/v1/sigil/spaces/${spaceId}/adopt`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-user-id": userId },
+        body: JSON.stringify({ status: "accepted" }),
+      })
+      if (!res.ok) {
+        throw new Error("採用の記録に失敗しました")
+      }
+      setAdopted(true)
+      setAdoptDialog(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "採用に失敗しました")
+    }
   }
+
+  if (loading) {
+    return <div className="text-sm text-muted-foreground">読み込み中...</div>
+  }
+
+  if (error || !space) {
+    return <div className="text-sm text-red-500">{error ?? "術式が見つかりません"}</div>
+  }
+
+  const adoptedCount = analytics?.adoptionsAccepted ?? 0
 
   return (
     <div className="space-y-6">
@@ -132,14 +158,14 @@ export default function SigilExploreDetailPage() {
           <ChevronLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-2xl font-semibold text-foreground">{space.name}</h1>
+          <h1 className="text-2xl font-semibold text-foreground">{space.title}</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {space.authorOrg} / {space.author}
+            Public Sigil
           </p>
         </div>
         <Button
           onClick={() => adopted ? null : setAdoptDialog(true)}
-          disabled={adopted}
+          disabled={adopted || !userId}
           className="gap-2"
         >
           {adopted ? (
@@ -164,15 +190,15 @@ export default function SigilExploreDetailPage() {
         </span>
         <span className="flex items-center gap-1.5">
           <BookOpen className="h-4 w-4" />
-          {space.chapters.length}章
+          {chapters.length}章
         </span>
         <span className="flex items-center gap-1.5">
           <Users className="h-4 w-4" />
-          {space.adoptedCount}件採用
+          {adoptedCount}件採用
         </span>
         <span className="flex items-center gap-1.5">
           <Calendar className="h-4 w-4" />
-          更新: {space.updatedAt}
+          更新: {space.createdAt.split("T")[0]}
         </span>
       </div>
 
@@ -200,7 +226,7 @@ export default function SigilExploreDetailPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">{space.responsibility}</p>
+            <p className="text-sm text-muted-foreground">{responsibility}</p>
           </CardContent>
         </Card>
       </div>
@@ -213,7 +239,7 @@ export default function SigilExploreDetailPage() {
         </CardHeader>
         <CardContent>
           <ul className="space-y-2">
-            {space.decisions.map((decision, i) => (
+            {decisions.map((decision, i) => (
               <li key={i} className="flex items-start gap-2 text-sm">
                 <span className="text-muted-foreground">•</span>
                 <span>{decision}</span>
@@ -226,12 +252,10 @@ export default function SigilExploreDetailPage() {
       {/* Done Strictness */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Done条件の厳しさ</CardTitle>
+          <CardTitle className="text-base">Done厳格度</CardTitle>
         </CardHeader>
         <CardContent>
-          <Badge variant="outline" className={strictnessLabels[space.doneStrictness].color}>
-            {strictnessLabels[space.doneStrictness].label}
-          </Badge>
+          <p className="text-sm text-muted-foreground">{strictnessLabel}</p>
         </CardContent>
       </Card>
 
@@ -239,57 +263,32 @@ export default function SigilExploreDetailPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">章構成</CardTitle>
-          <CardDescription>術式に含まれる章の概要</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            {space.chapters.map((chapter, index) => (
-              <div 
-                key={chapter.id}
-                className="flex items-start gap-3 p-3 rounded-md bg-muted/50"
-              >
-                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-background border border-border flex items-center justify-center text-xs font-medium">
-                  {index + 1}
-                </span>
-                <div>
-                  <p className="font-medium text-sm">{chapter.title}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{chapter.summary}</p>
-                </div>
+          <div className="space-y-2">
+            {chapters.map((chapter, idx) => (
+              <div key={chapter.chapterId} className="flex items-center gap-3 text-sm">
+                <span className="text-muted-foreground">{String(idx + 1).padStart(2, "0")}</span>
+                <span>{chapter.title}</span>
               </div>
             ))}
           </div>
         </CardContent>
       </Card>
 
-      {/* Adopt Dialog */}
       <Dialog open={adoptDialog} onOpenChange={setAdoptDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t("sigil.explore.adopt_confirm")}</DialogTitle>
+            <DialogTitle>この術式を採用しますか？</DialogTitle>
             <DialogDescription>
-              {t("sigil.explore.adopt_desc")}
+              採用すると、あなたのアカウントに採用記録が残ります。
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4 space-y-3">
-            <div className="flex items-start gap-2 text-sm">
-              <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5" />
-              <span>術式の全章がコピーされます</span>
-            </div>
-            <div className="flex items-start gap-2 text-sm">
-              <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5" />
-              <span>内容は自由に編集できます</span>
-            </div>
-            <div className="flex items-start gap-2 text-sm">
-              <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5" />
-              <span>元の術式が更新された場合、同期するか選択できます</span>
-            </div>
-          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAdoptDialog(false)} className="bg-transparent">
+            <Button variant="outline" onClick={() => setAdoptDialog(false)}>
               キャンセル
             </Button>
-            <Button onClick={handleAdopt} className="gap-2">
-              <Download className="h-4 w-4" />
+            <Button onClick={handleAdopt}>
               採用する
             </Button>
           </DialogFooter>

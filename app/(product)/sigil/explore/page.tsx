@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, Suspense } from "react"
+import { useEffect, useMemo, useState, Suspense } from "react"
 import Link from "next/link"
-import { Search, Globe, BookOpen, Users, Download, Eye, ChevronRight } from "@/components/icons"
+import { Search, Globe, BookOpen, Users, Download, Eye } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -17,70 +17,31 @@ import {
 } from "@/components/ui/dialog"
 import { useI18n } from "@/lib/i18n/context"
 import { useSearchParams } from "next/navigation"
+import { useAuth } from "@/lib/auth/context"
 
-// Mock data for public specifications
-const publicSpecs = [
-  {
-    id: "remote-eng-team",
-    name: "リモートエンジニアリングチーム",
-    author: "TechCorp Inc.",
-    purpose: "分散環境でプロダクト開発を効率的に進める",
-    category: "engineering",
-    chapters: 8,
-    adoptedCount: 127,
-    createdAt: "2025-11-15",
-  },
-  {
-    id: "customer-success",
-    name: "カスタマーサクセスチーム",
-    author: "SaaS Solutions Ltd.",
-    purpose: "顧客の成功を支援し、長期的な関係を構築する",
-    category: "customer-success",
-    chapters: 6,
-    adoptedCount: 89,
-    createdAt: "2025-12-01",
-  },
-  {
-    id: "design-system-team",
-    name: "デザインシステムチーム",
-    author: "Design Studio Co.",
-    purpose: "一貫したユーザー体験を提供するデザインシステムを構築・維持する",
-    category: "design",
-    chapters: 7,
-    adoptedCount: 64,
-    createdAt: "2025-10-20",
-  },
-  {
-    id: "sales-team-b2b",
-    name: "B2B営業チーム",
-    author: "Enterprise Sales Inc.",
-    purpose: "法人顧客との信頼関係を構築し、価値を提供する",
-    category: "sales",
-    chapters: 5,
-    adoptedCount: 156,
-    createdAt: "2025-09-10",
-  },
-  {
-    id: "data-science-team",
-    name: "データサイエンスチーム",
-    author: "Analytics Corp.",
-    purpose: "データに基づく意思決定を組織全体で推進する",
-    category: "data",
-    chapters: 6,
-    adoptedCount: 43,
-    createdAt: "2026-01-05",
-  },
-  {
-    id: "product-management",
-    name: "プロダクトマネジメント",
-    author: "Product Leaders",
-    purpose: "ユーザー価値とビジネス価値を最大化するプロダクトを作る",
-    category: "product",
-    chapters: 9,
-    adoptedCount: 201,
-    createdAt: "2025-08-22",
-  },
-]
+type PublicSpace = {
+  spaceId: string
+  title: string
+  purpose: string
+  ownerUserId: string
+  createdAt: string
+}
+
+type Adoption = {
+  spaceId: string
+  status: "accepted" | "declined"
+}
+
+type Spec = {
+  id: string
+  name: string
+  author: string
+  purpose: string
+  category: string
+  chapters: number
+  adoptedCount: number
+  createdAt: string
+}
 
 const categories = [
   { id: "all", label: "すべて" },
@@ -95,37 +56,107 @@ const categories = [
 ]
 
 function Loading() {
-  return null;
+  return null
 }
 
 export default function SigilExplorePage() {
   const { t } = useI18n()
+  const { userId } = useAuth()
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [adoptDialogOpen, setAdoptDialogOpen] = useState(false)
-  const [selectedSpec, setSelectedSpec] = useState<typeof publicSpecs[0] | null>(null)
+  const [selectedSpec, setSelectedSpec] = useState<Spec | null>(null)
   const [adoptedSpecs, setAdoptedSpecs] = useState<string[]>([])
+  const [specs, setSpecs] = useState<Spec[]>([])
+  const [error, setError] = useState<string | null>(null)
 
   const searchParams = useSearchParams();
   const categoryParam = searchParams.get("category") || "all";
 
-  const filteredSpecs = publicSpecs.filter((spec) => {
-    const matchesSearch =
-      spec.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      spec.purpose.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      spec.author.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesCategory = categoryParam === "all" || spec.category === categoryParam
-    return matchesSearch && matchesCategory
-  })
+  useEffect(() => {
+    let cancelled = false
 
-  const handleAdoptClick = (spec: typeof publicSpecs[0]) => {
+    const load = async () => {
+      setError(null)
+      try {
+        const res = await fetch("/api/v1/sigil/explore")
+        if (!res.ok) {
+          throw new Error("公開術式の取得に失敗しました")
+        }
+        const data = (await res.json()) as { spaces: PublicSpace[] }
+
+        let adoptionIds: string[] = []
+        if (userId) {
+          const adoptionRes = await fetch("/api/v1/sigil/adoptions", {
+            headers: { "x-user-id": userId },
+          })
+          if (adoptionRes.ok) {
+            const adoptionData = (await adoptionRes.json()) as { adoptions: Adoption[] }
+            adoptionIds = (adoptionData.adoptions ?? [])
+              .filter((adoption) => adoption.status === "accepted")
+              .map((adoption) => adoption.spaceId)
+          }
+        }
+
+        const mapped: Spec[] = (data.spaces ?? []).map((space) => ({
+          id: space.spaceId,
+          name: space.title,
+          author: space.ownerUserId,
+          purpose: space.purpose,
+          category: "all",
+          chapters: 0,
+          adoptedCount: 0,
+          createdAt: space.createdAt.split("T")[0],
+        }))
+
+        if (!cancelled) {
+          setSpecs(mapped)
+          setAdoptedSpecs(adoptionIds)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "データ取得に失敗しました")
+        }
+      }
+    }
+
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [userId])
+
+  const filteredSpecs = useMemo(() => {
+    return specs.filter((spec) => {
+      const matchesSearch =
+        spec.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        spec.purpose.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        spec.author.toLowerCase().includes(searchQuery.toLowerCase())
+      const matchesCategory = categoryParam === "all" || spec.category === categoryParam
+      return matchesSearch && matchesCategory
+    })
+  }, [specs, searchQuery, categoryParam])
+
+  const handleAdoptClick = (spec: Spec) => {
     setSelectedSpec(spec)
     setAdoptDialogOpen(true)
   }
 
-  const handleAdoptConfirm = () => {
-    if (selectedSpec) {
-      setAdoptedSpecs((prev) => [...prev, selectedSpec.id])
+  const handleAdoptConfirm = async () => {
+    if (selectedSpec && userId) {
+      try {
+        const res = await fetch(`/api/v1/sigil/spaces/${selectedSpec.id}/adopt`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-user-id": userId },
+          body: JSON.stringify({ status: "accepted" }),
+        })
+        if (!res.ok) {
+          throw new Error("採用の記録に失敗しました")
+        }
+        setAdoptedSpecs((prev) => [...prev, selectedSpec.id])
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "採用に失敗しました")
+      }
     }
     setAdoptDialogOpen(false)
     setSelectedSpec(null)
@@ -139,6 +170,8 @@ export default function SigilExplorePage() {
           <h1 className="text-2xl font-semibold text-foreground">{t("sigil.explore.title")}</h1>
           <p className="text-sm text-muted-foreground mt-1">{t("sigil.explore.desc")}</p>
         </div>
+
+        {error && <div className="text-sm text-red-500">{error}</div>}
 
         {/* Search and filters */}
         <div className="space-y-4">
@@ -190,7 +223,7 @@ export default function SigilExplorePage() {
                         asChild
                         className="bg-transparent"
                       >
-                        <Link href={`/sigil/space/${spec.id}`}>
+                        <Link href={`/sigil/explore/${spec.id}`}>
                           <Eye className="h-4 w-4 mr-1" />
                           {t("sigil.explore.view")}
                         </Link>
@@ -198,75 +231,48 @@ export default function SigilExplorePage() {
                       <Button
                         size="sm"
                         onClick={() => handleAdoptClick(spec)}
-                        disabled={isAdopted}
-                        variant={isAdopted ? "outline" : "default"}
-                        className={isAdopted ? "bg-transparent" : ""}
+                        disabled={isAdopted || !userId}
                       >
-                        <Download className="h-4 w-4 mr-1" />
-                        {isAdopted ? t("sigil.explore.adopted") : t("sigil.explore.adopt")}
+                        {isAdopted ? "採用済み" : t("sigil.explore.adopt")}
                       </Button>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Users className="h-3.5 w-3.5" />
-                      {spec.author}
-                    </span>
+                  <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1">
                       <BookOpen className="h-3.5 w-3.5" />
-                      {spec.chapters} {t("sigil.explore.chapters")}
+                      {spec.chapters}章
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Users className="h-3.5 w-3.5" />
+                      {spec.adoptedCount}件採用
                     </span>
                     <span className="flex items-center gap-1">
                       <Download className="h-3.5 w-3.5" />
-                      {spec.adoptedCount}
+                      {spec.createdAt}
                     </span>
-                    <Badge variant="secondary" className="text-xs">
-                      {categories.find((c) => c.id === spec.category)?.label || spec.category}
-                    </Badge>
                   </div>
                 </CardContent>
               </Card>
             )
           })}
-
-          {filteredSpecs.length === 0 && (
-            <div className="text-center py-12 text-muted-foreground">
-              該当する術式が見つかりませんでした
-            </div>
-          )}
         </div>
 
-        {/* Adopt confirmation dialog */}
+        {/* Adopt Dialog */}
         <Dialog open={adoptDialogOpen} onOpenChange={setAdoptDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{t("sigil.explore.adopt_confirm")}</DialogTitle>
-              <DialogDescription>{t("sigil.explore.adopt_desc")}</DialogDescription>
+              <DialogTitle>術式を採用しますか？</DialogTitle>
+              <DialogDescription>
+                採用すると、あなたのアカウントに採用記録が残ります。
+              </DialogDescription>
             </DialogHeader>
-            {selectedSpec && (
-              <div className="py-4">
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base">{selectedSpec.name}</CardTitle>
-                    <CardDescription>{selectedSpec.purpose}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <span>{selectedSpec.author}</span>
-                      <span>{selectedSpec.chapters}章</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
             <DialogFooter>
-              <Button variant="outline" onClick={() => setAdoptDialogOpen(false)} className="bg-transparent">
+              <Button variant="outline" onClick={() => setAdoptDialogOpen(false)}>
                 キャンセル
               </Button>
               <Button onClick={handleAdoptConfirm}>
-                <Download className="h-4 w-4 mr-1" />
                 採用する
               </Button>
             </DialogFooter>

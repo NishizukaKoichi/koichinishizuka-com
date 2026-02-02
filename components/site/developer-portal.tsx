@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import {
   Key,
@@ -157,7 +157,7 @@ export function DeveloperPortal() {
     setTimeout(() => setCopied(null), 2000)
   }
 
-  const loadKeys = async () => {
+  const loadKeys = useCallback(async () => {
     if (!userId) {
       setKeys([])
       return
@@ -211,11 +211,11 @@ export function DeveloperPortal() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [userId])
 
   useEffect(() => {
     void loadKeys()
-  }, [userId])
+  }, [loadKeys])
 
   const handleCreateKey = async () => {
     if (!newKeyName || selectedScopes.length === 0 || !userId) return

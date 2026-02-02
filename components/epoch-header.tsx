@@ -41,6 +41,9 @@ export function EpochHeader() {
   // ホーム（/epoch）以外では戻るボタンを表示
   const isHomePage = pathname === "/epoch"
   const showBackButton = !isHomePage
+  const resolvedOrganizations = userId ? currentOrganizations : []
+  const resolvedPendingScouts = userId ? pendingScouts : 0
+  const resolvedContext = userId ? currentContext : "personal"
 
   const handleBack = () => {
     router.back()
@@ -51,7 +54,7 @@ export function EpochHeader() {
       setCurrentContext("personal")
       router.push("/epoch")
     } else {
-      const org = currentOrganizations.find((o) => o.id === context)
+      const org = resolvedOrganizations.find((o) => o.id === context)
       if (org) {
         setCurrentContext({ orgId: org.id, orgName: org.name })
         router.push(`/epoch/org/${org.id}`)
@@ -60,11 +63,7 @@ export function EpochHeader() {
   }
 
   useEffect(() => {
-    if (!userId) {
-      setCurrentOrganizations([])
-      setPendingScouts(0)
-      return
-    }
+    if (!userId) return
     const load = async () => {
       try {
         const [orgResponse, scoutResponse] = await Promise.all([
@@ -116,8 +115,8 @@ export function EpochHeader() {
               </Link>
               <div className="h-5 w-px bg-border mx-1" />
               <EpochContextSwitcher
-                currentContext={currentContext}
-                currentOrganizations={currentOrganizations}
+                currentContext={resolvedContext}
+                currentOrganizations={resolvedOrganizations}
                 onSwitch={handleContextSwitch}
               />
               <button
@@ -132,12 +131,12 @@ export function EpochHeader() {
                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500" />
                 <span className="hidden sm:inline">{t("header.recording")}</span>
               </div>
-              {pendingScouts > 0 && (
+              {resolvedPendingScouts > 0 && (
                 <Link href="/epoch/scout">
                   <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground relative">
                     <Bell className="h-4 w-4" />
                     <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-amber-500 text-[10px] font-medium text-background flex items-center justify-center">
-                      {pendingScouts}
+                      {resolvedPendingScouts}
                     </span>
                   </Button>
                 </Link>

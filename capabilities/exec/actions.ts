@@ -162,7 +162,15 @@ export async function executeIntent(
   return { runId: run.id };
 }
 
-export async function createIntentAction(formData: FormData) {
+export async function createIntentAction(
+  first: FormData | unknown,
+  second?: FormData,
+) {
+  const formData = first instanceof FormData ? first : second;
+  if (!formData) {
+    throw new Error("FormData missing in createIntentAction");
+  }
+
   const userId = await getServerUserId();
   if (!userId) {
     redirect("/login");

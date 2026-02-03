@@ -75,6 +75,10 @@ export async function fetchIntent(userId: string, intentId: string) {
     return { intent: normalizeIntent(intent), error: null };
   }
 
+  if (process.env.NODE_ENV !== "development") {
+    return { intent: null, error: null };
+  }
+
   const fallbackRows = await query<DbIntentRow>(
     `select ${INTENT_COLUMNS}
        from intents
@@ -130,6 +134,10 @@ export async function fetchRunById(userId: string, runId: string) {
   const run = rows[0];
   if (run) {
     return { run: normalizeRun(run), error: null };
+  }
+
+  if (process.env.NODE_ENV !== "development") {
+    return { run: null, error: null };
   }
 
   const fallbackRows = await query<DbRunRow>(

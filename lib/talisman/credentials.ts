@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { query } from "../db";
+import { query } from "../db/talisman";
 import { uuidV7Like } from "../ids";
 import { ensurePerson, createPerson } from "./persons";
 import { recordEvent } from "./events";

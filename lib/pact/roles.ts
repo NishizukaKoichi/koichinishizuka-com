@@ -1,4 +1,4 @@
-import { query } from "../db";
+import { query } from "../db/pact";
 
 export async function ensureRole(roleId: string): Promise<void> {
   await query(

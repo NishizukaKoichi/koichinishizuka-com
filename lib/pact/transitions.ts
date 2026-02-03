@@ -1,4 +1,4 @@
-import { query } from "../db";
+import { query } from "../db/pact";
 import { uuidV7Like } from "../ids";
 
 export type PactState = "growth" | "stable" | "warning" | "critical" | "exit";

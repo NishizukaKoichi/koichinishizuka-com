@@ -1,4 +1,4 @@
-import { query } from "../db";
+import { query } from "../db/pact";
 import { uuidV7Like } from "../ids";
 import { ensureRole } from "./roles";
 

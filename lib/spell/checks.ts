@@ -1,4 +1,4 @@
-import { query } from "../db";
+import { query } from "../db/spell";
 import { uuidV7Like } from "../ids";
 
 export async function recordScopeCheck(options: {

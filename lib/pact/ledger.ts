@@ -1,4 +1,4 @@
-import { query, transaction } from "../db";
+import { query, transaction } from "../db/pact";
 import { uuidV7Like } from "../ids";
 import { getActiveThreshold } from "./thresholds";
 import { createTransition, getLatestTransition, type PactState } from "./transitions";

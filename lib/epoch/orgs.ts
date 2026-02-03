@@ -1,4 +1,4 @@
-import { query } from "../db";
+import { query } from "../db/epoch";
 import { uuidV7Like } from "../ids";
 import { ensureProfile } from "./profiles";
 

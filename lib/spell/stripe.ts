@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import type Stripe from "stripe";
 import { getStripe } from "../stripe";
-import { query } from "../db";
+import { query } from "../db/spell";
 import { upsertEntitlement } from "./entitlements";
 import { recordAuditEvent } from "./audit";
 

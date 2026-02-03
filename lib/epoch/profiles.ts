@@ -1,4 +1,4 @@
-import { query, transaction } from "../db";
+import { query, transaction } from "../db/epoch";
 import { uuidV7Like } from "../ids";
 
 export type ProfileLinkInput = {

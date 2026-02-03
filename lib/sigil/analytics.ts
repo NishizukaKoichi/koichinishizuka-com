@@ -1,4 +1,4 @@
-import { query } from "../db";
+import { query } from "../db/sigil";
 import { countAdoptions } from "./adoptions";
 
 export type SigilAnalytics = {

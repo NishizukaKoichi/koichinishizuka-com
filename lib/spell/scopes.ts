@@ -1,4 +1,4 @@
-import { query } from "../db";
+import { query } from "../db/spell";
 
 export type Scope = {
   scopeKey: string;

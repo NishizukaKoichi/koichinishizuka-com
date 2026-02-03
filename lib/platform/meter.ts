@@ -1,4 +1,4 @@
-import { query } from "../db";
+import { query } from "../db/platform";
 import { uuidV7Like } from "../ids";
 
 export type MeterStatus = "counted" | "ignored";

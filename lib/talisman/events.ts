@@ -1,4 +1,4 @@
-import { query } from "../db";
+import { query } from "../db/talisman";
 import { uuidV7Like } from "../ids";
 
 export type TalismanEventType =

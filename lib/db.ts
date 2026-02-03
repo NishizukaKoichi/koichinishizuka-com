@@ -11,30 +11,72 @@ export type DbClient = {
   query: <T extends DbRow>(sql: string, params?: unknown[]) => Promise<DbQueryResult<T>>;
 };
 
-const globalStore = globalThis as unknown as {
-  __dbClient?: DbClient;
-  __dbPool?: Pool;
+export type DbTarget =
+  | "platform"
+  | "epoch"
+  | "sigil"
+  | "pact"
+  | "talisman"
+  | "spell";
+
+const targetEnv: Record<DbTarget, string> = {
+  platform: "PLATFORM_DATABASE_URL",
+  epoch: "EPOCH_DATABASE_URL",
+  sigil: "SIGIL_DATABASE_URL",
+  pact: "PACT_DATABASE_URL",
+  talisman: "TALISMAN_DATABASE_URL",
+  spell: "SPELL_DATABASE_URL",
 };
 
-const clientStorage = new AsyncLocalStorage<DbClient>();
+type ScopedClient = {
+  target: DbTarget;
+  client: DbClient;
+};
 
-function initDbFromEnv(): void {
-  if (globalStore.__dbClient || globalStore.__dbPool) {
+const globalStore = globalThis as unknown as {
+  __dbClients?: Map<DbTarget, DbClient>;
+  __dbPools?: Map<DbTarget, Pool>;
+};
+
+const clientStorage = new AsyncLocalStorage<ScopedClient>();
+
+function getClients(): Map<DbTarget, DbClient> {
+  if (!globalStore.__dbClients) {
+    globalStore.__dbClients = new Map();
+  }
+  return globalStore.__dbClients;
+}
+
+function getPools(): Map<DbTarget, Pool> {
+  if (!globalStore.__dbPools) {
+    globalStore.__dbPools = new Map();
+  }
+  return globalStore.__dbPools;
+}
+
+function initDbFromEnv(target: DbTarget): void {
+  const pools = getPools();
+  const clients = getClients();
+  if (clients.has(target) || pools.has(target)) {
     return;
   }
-  const url = process.env.DATABASE_URL;
+  const envKey = targetEnv[target];
+  const url = process.env[envKey];
   if (!url) {
     return;
   }
-  globalStore.__dbPool = new Pool({ connectionString: url });
+  pools.set(target, new Pool({ connectionString: url }));
 }
 
-function getActiveClient(): DbClient {
+function getActiveClient(target: DbTarget): DbClient {
+  const pools = getPools();
+  const clients = getClients();
   const scoped = clientStorage.getStore();
-  if (scoped) return scoped;
-  if (globalStore.__dbClient) return globalStore.__dbClient;
-  if (globalStore.__dbPool) {
-    const pool = globalStore.__dbPool;
+  if (scoped && scoped.target === target) return scoped.client;
+  const direct = clients.get(target);
+  if (direct) return direct;
+  const pool = pools.get(target);
+  if (pool) {
     return {
       query: async <T extends DbRow>(sql: string, params: unknown[] = []) => {
         const result = await pool.query<T>(sql, params);
@@ -42,36 +84,43 @@ function getActiveClient(): DbClient {
       },
     };
   }
-  throw new Error("DB client not configured");
+  const envKey = targetEnv[target];
+  throw new Error(`DB client not configured for ${target} (${envKey})`);
 }
 
-export function setDbClient(client: DbClient): void {
-  globalStore.__dbClient = client;
+export function setDbClient(target: DbTarget, client: DbClient): void {
+  getClients().set(target, client);
 }
 
-export function hasDbClient(): boolean {
-  initDbFromEnv();
-  return Boolean(globalStore.__dbClient || globalStore.__dbPool);
+export function hasDbClient(target: DbTarget): boolean {
+  initDbFromEnv(target);
+  const pools = getPools();
+  const clients = getClients();
+  return Boolean(clients.has(target) || pools.has(target));
 }
 
-export function getDbClient(): DbClient {
-  initDbFromEnv();
-  return getActiveClient();
+export function getDbClient(target: DbTarget): DbClient {
+  initDbFromEnv(target);
+  return getActiveClient(target);
 }
 
 export async function query<T extends DbRow>(
+  target: DbTarget,
   sql: string,
   params: unknown[] = []
 ): Promise<T[]> {
-  const client = getActiveClient();
+  initDbFromEnv(target);
+  const client = getActiveClient(target);
   const result = await client.query<T>(sql, params);
   return result.rows;
 }
 
-export async function transaction<T>(fn: () => Promise<T>): Promise<T> {
-  initDbFromEnv();
-  if (globalStore.__dbPool) {
-    const poolClient = await globalStore.__dbPool.connect();
+export async function transaction<T>(target: DbTarget, fn: () => Promise<T>): Promise<T> {
+  initDbFromEnv(target);
+  const pools = getPools();
+  const pool = pools.get(target);
+  if (pool) {
+    const poolClient = await pool.connect();
     const scopedClient: DbClient = {
       query: async <T extends DbRow>(sql: string, params: unknown[] = []) => {
         const result = await poolClient.query<T>(sql, params);
@@ -79,7 +128,7 @@ export async function transaction<T>(fn: () => Promise<T>): Promise<T> {
       },
     };
     try {
-      return await clientStorage.run(scopedClient, async () => {
+      return await clientStorage.run({ target, client: scopedClient }, async () => {
         await poolClient.query("BEGIN");
         const result = await fn();
         await poolClient.query("COMMIT");
@@ -93,7 +142,7 @@ export async function transaction<T>(fn: () => Promise<T>): Promise<T> {
     }
   }
 
-  const client = getActiveClient();
+  const client = getActiveClient(target);
   await client.query("BEGIN");
   try {
     const result = await fn();

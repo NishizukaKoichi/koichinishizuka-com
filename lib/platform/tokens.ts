@@ -1,4 +1,4 @@
-import { query } from "../db";
+import { query } from "../db/platform";
 import { uuidV7Like } from "../ids";
 import { ACCESS_TOKEN_TTL_MINUTES, REFRESH_TOKEN_TTL_DAYS } from "./constants";
 import { generateOpaqueToken, hashToken } from "./crypto";

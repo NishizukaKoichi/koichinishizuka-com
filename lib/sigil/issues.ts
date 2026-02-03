@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { query } from "../db";
+import { query } from "../db/sigil";
 import { uuidV7Like } from "../ids";
 
 export type SigilArtifact = {

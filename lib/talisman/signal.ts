@@ -1,4 +1,4 @@
-import { query } from "../db";
+import { query } from "../db/talisman";
 import type { CredentialType } from "./credentials";
 
 export type TalismanSignal = {

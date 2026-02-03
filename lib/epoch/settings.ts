@@ -1,4 +1,4 @@
-import { query } from "../db";
+import { query } from "../db/epoch";
 import { ensureProfile } from "./profiles";
 
 export type ScoutSettings = {

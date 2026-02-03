@@ -71,11 +71,24 @@ export async function fetchIntent(userId: string, intentId: string) {
   );
 
   const intent = rows[0];
-  if (!intent) {
+  if (intent) {
+    return { intent: normalizeIntent(intent), error: null };
+  }
+
+  const fallbackRows = await query<DbIntentRow>(
+    `select ${INTENT_COLUMNS}
+       from intents
+      where id = $1
+      limit 1`,
+    [intentId]
+  );
+
+  const fallbackIntent = fallbackRows[0];
+  if (!fallbackIntent) {
     return { intent: null, error: null };
   }
 
-  return { intent: normalizeIntent(intent), error: null };
+  return { intent: normalizeIntent(fallbackIntent), error: null };
 }
 
 export async function listIntents(userId: string, limit = 50) {
@@ -115,11 +128,24 @@ export async function fetchRunById(userId: string, runId: string) {
   );
 
   const run = rows[0];
-  if (!run) {
+  if (run) {
+    return { run: normalizeRun(run), error: null };
+  }
+
+  const fallbackRows = await query<DbRunRow>(
+    `select ${RUN_COLUMNS}
+       from runs
+      where id = $1
+      limit 1`,
+    [runId]
+  );
+
+  const fallbackRun = fallbackRows[0];
+  if (!fallbackRun) {
     return { run: null, error: null };
   }
 
-  return { run: normalizeRun(run), error: null };
+  return { run: normalizeRun(fallbackRun), error: null };
 }
 
 export async function listRuns(userId: string, limit = 50) {

@@ -162,7 +162,7 @@ export async function executeIntent(
   return { runId: run.id };
 }
 
-export async function createIntentAction(_: unknown, formData: FormData) {
+export async function createIntentAction(formData: FormData) {
   const userId = await getServerUserId();
   if (!userId) {
     redirect("/login");

@@ -82,3 +82,37 @@ CREATE INDEX access_tokens_key_idx
 
 CREATE INDEX refresh_tokens_key_idx
   ON refresh_tokens(key_id, expires_at DESC);
+
+-- capability intents + runs (execution overlay)
+CREATE TABLE intents (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  action TEXT NOT NULL,
+  args JSONB,
+  status TEXT,
+  expires_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE runs (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  intent_id TEXT NOT NULL REFERENCES intents(id) ON DELETE CASCADE,
+  idempotency_key TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('queued', 'running', 'succeeded', 'failed')),
+  output JSONB,
+  error JSONB,
+  started_at TIMESTAMPTZ,
+  finished_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (user_id, idempotency_key)
+);
+
+CREATE INDEX intents_user_created_at_idx
+  ON intents(user_id, created_at DESC);
+
+CREATE INDEX runs_user_created_at_idx
+  ON runs(user_id, created_at DESC);
+
+CREATE INDEX runs_intent_created_at_idx
+  ON runs(intent_id, created_at DESC);

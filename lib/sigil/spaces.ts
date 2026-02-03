@@ -56,18 +56,6 @@ export async function createSpace(options: {
     const nowIso = new Date().toISOString();
 
     await query(
-      `INSERT INTO space_revisions (
-         revision_id,
-         space_id,
-         title,
-         purpose,
-         created_at,
-         author_user_id
-       ) VALUES ($1, $2, $3, $4, $5, $6)`,
-      [revisionId, spaceId, options.title, options.purpose, nowIso, options.ownerUserId]
-    );
-
-    await query(
       `INSERT INTO spaces (
          space_id,
          owner_user_id,
@@ -77,6 +65,18 @@ export async function createSpace(options: {
          created_at
        ) VALUES ($1, $2, $3, $4, $5, $6)`,
       [spaceId, options.ownerUserId, options.visibility, "draft", revisionId, nowIso]
+    );
+
+    await query(
+      `INSERT INTO space_revisions (
+         revision_id,
+         space_id,
+         title,
+         purpose,
+         created_at,
+         author_user_id
+       ) VALUES ($1, $2, $3, $4, $5, $6)`,
+      [revisionId, spaceId, options.title, options.purpose, nowIso, options.ownerUserId]
     );
 
     return {

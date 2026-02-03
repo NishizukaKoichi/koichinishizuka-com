@@ -5,6 +5,19 @@ import { getRequestUserId } from "../../../../../../lib/platform/request";
 
 export const runtime = "nodejs";
 
+function resolveKeyId(request: Request, params: { keyId?: string } = {}): string | null {
+  if (params.keyId) {
+    return params.keyId;
+  }
+  const pathname = new URL(request.url).pathname;
+  const segments = pathname.split("/").filter(Boolean);
+  const index = segments.indexOf("developer-keys");
+  if (index === -1 || index + 1 >= segments.length) {
+    return null;
+  }
+  return segments[index + 1] ?? null;
+}
+
 export async function GET(
   request: Request,
   context: { params: { keyId: string } }
@@ -14,7 +27,7 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const keyId = context.params.keyId;
+  const keyId = resolveKeyId(request, context.params);
   if (!keyId) {
     return NextResponse.json({ error: "keyId is required" }, { status: 400 });
   }
@@ -39,7 +52,7 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const keyId = context.params.keyId;
+  const keyId = resolveKeyId(request, context.params);
   if (!keyId) {
     return NextResponse.json({ error: "keyId is required" }, { status: 400 });
   }

@@ -4,19 +4,20 @@ import { RunDetail } from "@/capabilities/exec/ui/RunDetail";
 import { getServerUserId } from "@/lib/auth/server";
 
 type Props = {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 };
 
 export default async function RunDetailPage({ params }: Props) {
+  const { id } = await params;
   const userId = await getServerUserId();
 
   if (!userId) {
     redirect("/login");
   }
 
-  const { run, error } = await fetchRunById(userId, params.id);
+  const { run, error } = await fetchRunById(userId, id);
 
   if (error || !run) {
     return (

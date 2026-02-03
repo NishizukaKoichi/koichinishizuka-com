@@ -5,19 +5,20 @@ import { ExecuteForm } from "@/capabilities/exec/ui/ExecuteForm";
 import { getServerUserId } from "@/lib/auth/server";
 
 type Props = {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 };
 
 export default async function ExecuteIntentPage({ params }: Props) {
+  const { id } = await params;
   const userId = await getServerUserId();
 
   if (!userId) {
     redirect("/login");
   }
 
-  const { intent, error } = await fetchIntent(userId, params.id);
+  const { intent, error } = await fetchIntent(userId, id);
 
   if (error || !intent) {
     return (

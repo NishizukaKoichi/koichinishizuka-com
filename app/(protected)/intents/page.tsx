@@ -5,7 +5,7 @@ import { listIntents } from "@/capabilities/exec/repo";
 import { getServerUserId } from "@/lib/auth/server";
 
 export default async function IntentsPage() {
-  const userId = getServerUserId();
+  const userId = await getServerUserId();
 
   if (!userId) {
     redirect("/login");

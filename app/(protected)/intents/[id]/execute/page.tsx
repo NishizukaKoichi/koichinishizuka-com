@@ -11,7 +11,7 @@ type Props = {
 };
 
 export default async function ExecuteIntentPage({ params }: Props) {
-  const userId = getServerUserId();
+  const userId = await getServerUserId();
 
   if (!userId) {
     redirect("/login");

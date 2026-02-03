@@ -45,7 +45,7 @@ export async function executeIntent(
   _: ExecuteResult,
   formData: FormData,
 ): Promise<ExecuteResult> {
-  const userId = getServerUserId();
+  const userId = await getServerUserId();
 
   if (!userId) {
     redirect("/login");
@@ -163,7 +163,7 @@ export async function executeIntent(
 }
 
 export async function createIntentAction(_: unknown, formData: FormData) {
-  const userId = getServerUserId();
+  const userId = await getServerUserId();
   if (!userId) {
     redirect("/login");
   }

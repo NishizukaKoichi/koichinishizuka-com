@@ -4,7 +4,7 @@ import { RunList } from "@/capabilities/exec/ui/RunList";
 import { getServerUserId } from "@/lib/auth/server";
 
 export default async function RunsPage() {
-  const userId = getServerUserId();
+  const userId = await getServerUserId();
 
   if (!userId) {
     redirect("/login");

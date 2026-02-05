@@ -49,5 +49,16 @@ This repo is a gate, not documentation. If required fields are blank, you are no
 - Run `pnpm smoke` against a running app before release.
 - Optionally run `node scripts/init.mjs <product-name> <display-name?>` to replace README placeholders.
 
+## Deploy Commands
+- `pnpm deploy:platform`
+- `pnpm deploy:epoch`
+- `pnpm deploy:sigil`
+- `pnpm deploy:pact`
+- `pnpm deploy:talisman`
+- `pnpm deploy:spell`
+
+For target previews:
+- `pnpm deploy:target -- --target <platform|epoch|sigil|pact|talisman|spell> --preview`
+
 ## SSOT
 This template assumes stack and dependency pinning are enforced in product-contracts (SSOT).

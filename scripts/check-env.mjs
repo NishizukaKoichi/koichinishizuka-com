@@ -25,15 +25,27 @@ const envLocal = loadEnvFile(path.join(repoRoot, ".env.local"));
 const envProd = loadEnvFile(path.join(repoRoot, ".env.production.local"));
 const env = { ...envLocal, ...envProd, ...process.env };
 
-const required = [
-  "APP_BASE_URL",
-  "PLATFORM_DATABASE_URL",
-  "EPOCH_DATABASE_URL",
-  "SIGIL_DATABASE_URL",
-  "PACT_DATABASE_URL",
-  "TALISMAN_DATABASE_URL",
-  "SPELL_DATABASE_URL",
-];
+const target = (env.DEPLOY_TARGET ?? "all").trim().toLowerCase();
+
+const requiredByTarget = {
+  all: [
+    "APP_BASE_URL",
+    "PLATFORM_DATABASE_URL",
+    "EPOCH_DATABASE_URL",
+    "SIGIL_DATABASE_URL",
+    "PACT_DATABASE_URL",
+    "TALISMAN_DATABASE_URL",
+    "SPELL_DATABASE_URL",
+  ],
+  platform: ["APP_BASE_URL", "PLATFORM_DATABASE_URL"],
+  epoch: ["APP_BASE_URL", "EPOCH_DATABASE_URL"],
+  sigil: ["APP_BASE_URL", "SIGIL_DATABASE_URL"],
+  pact: ["APP_BASE_URL", "PACT_DATABASE_URL"],
+  talisman: ["APP_BASE_URL", "TALISMAN_DATABASE_URL"],
+  spell: ["APP_BASE_URL", "SPELL_DATABASE_URL"],
+};
+
+const required = requiredByTarget[target] ?? requiredByTarget.all;
 
 const missing = required.filter((key) => !env[key] || env[key].trim().length === 0);
 const errors = [];
@@ -41,6 +53,10 @@ const warnings = [];
 
 if (missing.length > 0) {
   errors.push(`Missing required variables: ${missing.join(", ")}`);
+}
+
+if (!(target in requiredByTarget)) {
+  warnings.push(`Unknown DEPLOY_TARGET=${target}; using full required set`);
 }
 
 if (env.APP_BASE_URL && !/^https?:\/\//.test(env.APP_BASE_URL)) {

@@ -2,7 +2,7 @@
   "name": "epoch",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@10.25.0+sha512.5e82639027af37cf832061bcc6d639c219634488e0f2baebe785028a793de7b525ffcd3f7ff574f5e9860654e098fe852ba8ac5dd5cefe1767d23a020a92f501",
+  "packageManager": "pnpm@10.25.0",
   "engines": {
     "node": ">=24.12.0 <25"
   },
@@ -14,6 +14,13 @@
     "format": "prettier -w .",
     "format:check": "prettier -c .",
     "env:check": "node scripts/check-env.mjs",
+    "deploy:target": "node scripts/deploy-target.mjs",
+    "deploy:platform": "node scripts/deploy-target.mjs --target platform --prod",
+    "deploy:epoch": "node scripts/deploy-target.mjs --target epoch --prod",
+    "deploy:sigil": "node scripts/deploy-target.mjs --target sigil --prod",
+    "deploy:pact": "node scripts/deploy-target.mjs --target pact --prod",
+    "deploy:talisman": "node scripts/deploy-target.mjs --target talisman --prod",
+    "deploy:spell": "node scripts/deploy-target.mjs --target spell --prod",
     "smoke": "node scripts/smoke/core.mjs",
     "verify": "node scripts/verify.mjs",
     "stack:apply": "node scripts/stack/apply.mjs --repo .",

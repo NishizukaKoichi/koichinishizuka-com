@@ -1,4 +1,4 @@
-import { query } from "./db";
+import { query } from "./db/epoch";
 import { uuidV7Like } from "./ids";
 
 export type ReadAccessType = "time_window" | "read_session";

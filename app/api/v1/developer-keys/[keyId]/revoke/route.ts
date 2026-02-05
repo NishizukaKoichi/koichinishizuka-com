@@ -1,20 +1,23 @@
 import { NextResponse } from "next/server";
 import { revokeDeveloperKey } from "../../../../../../lib/platform/keys";
-import { getRequestUserId } from "../../../../../../lib/platform/request";
+import { getServerUserId } from "../../../../../../lib/auth/server";
 
 export const runtime = "nodejs";
 
 export async function POST(
-  request: Request,
+  _request: Request,
   context: { params: { keyId: string } }
 ) {
-  const body = await request.json().catch(() => ({}));
-  const ownerUserId = (body?.owner_user_id as string | undefined) ?? getRequestUserId(request);
+  const ownerUserId = await getServerUserId();
   const keyId = context.params.keyId;
 
-  if (!ownerUserId || !keyId) {
+  if (!ownerUserId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!keyId) {
     return NextResponse.json(
-      { error: "owner_user_id and key_id are required" },
+      { error: "key_id is required" },
       { status: 400 }
     );
   }

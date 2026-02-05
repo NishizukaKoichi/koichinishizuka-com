@@ -3,6 +3,9 @@ import { uuidV7Like } from "../ids";
 
 export type ScopeStatus = "granted" | "revoked";
 export type ConditionType = "free" | "metered" | "review";
+export const MAX_SCOPES_PER_REQUEST = 64;
+export const MAX_SCOPE_KEY_LENGTH = 128;
+export const SCOPE_KEY_PATTERN = /^[a-z][a-z0-9._:-]*$/i;
 
 export type DeveloperScope = {
   scope: string;
@@ -21,6 +24,36 @@ type ScopeRow = {
   condition_type: ConditionType;
   condition_ref: string | null;
 };
+
+export function normalizeScopeList(input: string[] | undefined): string[] {
+  if (!input) {
+    return [];
+  }
+
+  if (input.length > MAX_SCOPES_PER_REQUEST) {
+    throw new Error(`Too many scopes requested (max ${MAX_SCOPES_PER_REQUEST})`);
+  }
+
+  const deduped = new Set<string>();
+  for (const raw of input) {
+    if (typeof raw !== "string") {
+      throw new Error("Invalid scope format");
+    }
+    const scope = raw.trim();
+    if (!scope) {
+      continue;
+    }
+    if (scope.length > MAX_SCOPE_KEY_LENGTH) {
+      throw new Error(`Scope key too long: ${scope}`);
+    }
+    if (!SCOPE_KEY_PATTERN.test(scope)) {
+      throw new Error(`Invalid scope key: ${scope}`);
+    }
+    deduped.add(scope);
+  }
+
+  return Array.from(deduped);
+}
 
 export async function listDeveloperScopes(keyId: string): Promise<DeveloperScope[]> {
   const rows = await query<ScopeRow>(

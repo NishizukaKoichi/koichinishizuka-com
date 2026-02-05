@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { assertDeveloperKeyOwner } from "../../../../../../lib/platform/keys";
-import { listDeveloperScopes, upsertDeveloperScope, upsertEntitlement } from "../../../../../../lib/platform/scopes";
-import { getRequestUserId } from "../../../../../../lib/platform/request";
+import {
+  listDeveloperScopes,
+  normalizeScopeList,
+  upsertDeveloperScope,
+  upsertEntitlement,
+} from "../../../../../../lib/platform/scopes";
+import { getServerUserId } from "../../../../../../lib/auth/server";
 
 export const runtime = "nodejs";
 
@@ -22,7 +27,7 @@ export async function GET(
   request: Request,
   context: { params: { keyId: string } }
 ) {
-  const userId = getRequestUserId(request);
+  const userId = await getServerUserId();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -47,7 +52,7 @@ export async function POST(
   request: Request,
   context: { params: { keyId: string } }
 ) {
-  const userId = getRequestUserId(request);
+  const userId = await getServerUserId();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -58,16 +63,20 @@ export async function POST(
   }
 
   const body = await request.json();
-  const scope = body?.scope as string | undefined;
+  const scopeInput = body?.scope as string | undefined;
   const action = body?.action as "grant" | "revoke" | undefined;
   const conditionType = body?.conditionType as "free" | "metered" | "review" | undefined;
   const conditionRef = body?.conditionRef as string | undefined;
 
-  if (!scope || !action) {
+  if (!scopeInput || !action) {
     return NextResponse.json({ error: "scope and action are required" }, { status: 400 });
   }
 
   try {
+    const [scope] = normalizeScopeList([scopeInput]);
+    if (!scope) {
+      return NextResponse.json({ error: "scope and action are required" }, { status: 400 });
+    }
     await assertDeveloperKeyOwner({ keyId, ownerUserId: userId });
     await upsertDeveloperScope({ keyId, scope, action, conditionType, conditionRef });
     await upsertEntitlement({

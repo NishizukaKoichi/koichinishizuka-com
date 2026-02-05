@@ -2,7 +2,7 @@ import { query } from "../db/platform";
 import { uuidV7Like } from "../ids";
 import { ACCESS_TOKEN_TTL_MINUTES, REFRESH_TOKEN_TTL_DAYS } from "./constants";
 import { generateOpaqueToken, hashToken } from "./crypto";
-import { listActiveEntitlements } from "./scopes";
+import { listActiveEntitlements, normalizeScopeList } from "./scopes";
 
 export type AccessToken = {
   accessToken: string;
@@ -31,6 +31,10 @@ type RefreshTokenRow = {
   revoked_at: string | null;
 };
 
+type DeveloperKeyStateRow = {
+  status: "active" | "revoked";
+};
+
 function computeExpiryMinutes(minutes: number): string {
   return new Date(Date.now() + minutes * 60 * 1000).toISOString();
 }
@@ -39,12 +43,32 @@ function computeExpiryDays(days: number): string {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
 }
 
+async function assertActiveDeveloperKey(keyId: string): Promise<void> {
+  const rows = await query<DeveloperKeyStateRow>(
+    `SELECT status
+     FROM developer_keys
+     WHERE key_id = $1
+     LIMIT 1`,
+    [keyId]
+  );
+
+  if (rows.length === 0) {
+    throw new Error("Developer key not found");
+  }
+  if (rows[0].status !== "active") {
+    throw new Error("Developer key revoked");
+  }
+}
+
 export async function issueTokens(options: {
   keyId: string;
   requestedScopes?: string[];
 }): Promise<{ access: AccessToken; refresh: RefreshToken }> {
+  await assertActiveDeveloperKey(options.keyId);
+
   const allowedScopes = await listActiveEntitlements(options.keyId);
-  const requested = options.requestedScopes?.length ? options.requestedScopes : allowedScopes;
+  const requestedScopes = normalizeScopeList(options.requestedScopes);
+  const requested = requestedScopes.length > 0 ? requestedScopes : allowedScopes;
   const scopes = requested.filter((scope) => allowedScopes.includes(scope));
 
   if (scopes.length === 0) {
@@ -107,7 +131,7 @@ export async function issueTokens(options: {
 
 export async function refreshAccessToken(options: {
   refreshToken: string;
-}): Promise<AccessToken> {
+}): Promise<AccessToken & { keyId: string }> {
   const hash = hashToken(options.refreshToken);
   const rows = await query<RefreshTokenRow>(
     `SELECT token_id, key_id, issued_at, expires_at, revoked_at
@@ -129,6 +153,8 @@ export async function refreshAccessToken(options: {
   if (new Date(row.expires_at).getTime() <= Date.now()) {
     throw new Error("Refresh token expired");
   }
+
+  await assertActiveDeveloperKey(row.key_id);
 
   const allowedScopes = await listActiveEntitlements(row.key_id);
   if (allowedScopes.length === 0) {
@@ -158,6 +184,7 @@ export async function refreshAccessToken(options: {
   );
 
   return {
+    keyId: row.key_id,
     accessToken,
     expiresAt: accessExpiresAt,
     scopes: allowedScopes,
@@ -190,6 +217,8 @@ export async function verifyAccessToken(accessToken: string): Promise<{
   if (new Date(row.expires_at).getTime() <= Date.now()) {
     throw new Error("Access token expired");
   }
+
+  await assertActiveDeveloperKey(row.key_id);
 
   const scopes = typeof row.scopes === "string" ? (JSON.parse(row.scopes) as string[]) : (row.scopes as unknown as string[]);
   return { keyId: row.key_id, scopes };

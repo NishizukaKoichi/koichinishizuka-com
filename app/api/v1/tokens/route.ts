@@ -2,8 +2,17 @@ import { NextResponse } from "next/server";
 import { getBearerToken } from "../../../../lib/platform/request";
 import { getKeyBySecret, touchDeveloperKey } from "../../../../lib/platform/keys";
 import { issueTokens } from "../../../../lib/platform/tokens";
+import { recordMeterEvent } from "../../../../lib/platform/meter";
 
 export const runtime = "nodejs";
+
+function resolveTokenIssueStatus(error: unknown): number {
+  const message = error instanceof Error ? error.message : "Failed to issue token";
+  if (message.includes("Invalid developer key")) return 401;
+  if (message.includes("revoked")) return 403;
+  if (message.includes("No active entitlements")) return 403;
+  return 400;
+}
 
 export async function POST(request: Request) {
   const developerKey = getBearerToken(request);
@@ -21,6 +30,7 @@ export async function POST(request: Request) {
     }
 
     const tokens = await issueTokens({ keyId: key.keyId, requestedScopes });
+    await recordMeterEvent({ keyId: key.keyId, scope: "platform.tokens.issue" });
     await touchDeveloperKey(key.keyId);
 
     return NextResponse.json({
@@ -32,6 +42,6 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to issue token";
-    return NextResponse.json({ error: message }, { status: 400 });
+    return NextResponse.json({ error: message }, { status: resolveTokenIssueStatus(error) });
   }
 }

@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 import { createDeveloperKey, listDeveloperKeys } from "../../../../lib/platform/keys";
-import { getRequestUserId } from "../../../../lib/platform/request";
+import { getServerUserId } from "../../../../lib/auth/server";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const ownerUserId = searchParams.get("owner_user_id") ?? getRequestUserId(request);
+  const ownerUserId = await getServerUserId();
   if (!ownerUserId) {
-    return NextResponse.json({ error: "owner_user_id is required" }, { status: 400 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const keys = await listDeveloperKeys(ownerUserId);
@@ -27,14 +26,15 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
-  const ownerUserId = (body?.owner_user_id as string | undefined) ?? getRequestUserId(request);
+  const ownerUserId = await getServerUserId();
   const name = body?.name as string | undefined;
 
-  if (!ownerUserId || !name) {
-    return NextResponse.json(
-      { error: "owner_user_id and name are required" },
-      { status: 400 }
-    );
+  if (!ownerUserId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!name) {
+    return NextResponse.json({ error: "name is required" }, { status: 400 });
   }
 
   try {

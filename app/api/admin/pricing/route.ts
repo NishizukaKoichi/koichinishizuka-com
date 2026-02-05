@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { billingConfig } from "../../../../config/billing";
 import { listPlans, listActivePrices, setActivePriceIdForPlan } from "../../../../lib/plans";
 import { createStripePrice } from "../../../../lib/stripe";
+import { getServerUserEmail } from "../../../../lib/auth/server";
 
 export const runtime = "nodejs";
 
-type AdminCheck = { ok: true } | { ok: false; error: string };
+type AdminCheck = { ok: true } | { ok: false; error: string; status: number };
 
 function parseAllowlist(value: string | undefined): string[] {
   if (!value) {
@@ -17,17 +18,17 @@ function parseAllowlist(value: string | undefined): string[] {
     .filter(Boolean);
 }
 
-function assertAdmin(request: Request): AdminCheck {
-  const email = request.headers.get("x-user-email") ?? "";
+async function assertAdmin(): Promise<AdminCheck> {
+  const email = await getServerUserEmail();
   const emailAllowlist = parseAllowlist(process.env.ADMIN_EMAIL_ALLOWLIST);
   const domainAllowlist = parseAllowlist(process.env.ADMIN_DOMAIN_ALLOWLIST);
 
   if (emailAllowlist.length === 0 && domainAllowlist.length === 0) {
-    return { ok: false, error: "Admin allowlist is not configured" };
+    return { ok: false, error: "Admin allowlist is not configured", status: 503 };
   }
 
   if (!email) {
-    return { ok: false, error: "Missing x-user-email header" };
+    return { ok: false, error: "Unauthorized", status: 401 };
   }
 
   if (emailAllowlist.includes(email)) {
@@ -39,13 +40,13 @@ function assertAdmin(request: Request): AdminCheck {
     return { ok: true };
   }
 
-  return { ok: false, error: "Admin access denied" };
+  return { ok: false, error: "Admin access denied", status: 403 };
 }
 
-export async function GET(request: Request) {
-  const adminCheck = assertAdmin(request);
+export async function GET() {
+  const adminCheck = await assertAdmin();
   if (!adminCheck.ok) {
-    return NextResponse.json({ error: adminCheck.error }, { status: 403 });
+    return NextResponse.json({ error: adminCheck.error }, { status: adminCheck.status });
   }
 
   const plans = await listPlans();
@@ -55,9 +56,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const adminCheck = assertAdmin(request);
+  const adminCheck = await assertAdmin();
   if (!adminCheck.ok) {
-    return NextResponse.json({ error: adminCheck.error }, { status: 403 });
+    return NextResponse.json({ error: adminCheck.error }, { status: adminCheck.status });
   }
 
   const body = await request.json();

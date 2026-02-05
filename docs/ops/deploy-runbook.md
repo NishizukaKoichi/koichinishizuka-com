@@ -19,6 +19,8 @@ Stripe must be configured as a pair:
 ## Optional but Recommended
 - `ADMIN_EMAIL_ALLOWLIST` or `ADMIN_DOMAIN_ALLOWLIST`
 - `EXEC_USER_ID_ALLOWLIST` or `EXEC_EMAIL_ALLOWLIST` or `EXEC_DOMAIN_ALLOWLIST`
+- `INTERNAL_REQUEST_SECRET` (required if trusted internal services forward `x-user-id`)
+- `ALLOW_DEV_HEADER_AUTH` (`0` in production)
 
 ## Pre-Deploy Steps
 1. Install dependencies with Node `24.12.x` and pnpm `10.25.x`.
@@ -31,7 +33,7 @@ If `pnpm env:check` fails, stop deployment.
 ## Deploy Steps
 1. Set all required env vars in Vercel target environment.
 2. Deploy the current commit.
-3. Verify `/api/v1/token` and `/api/v1/spell/check` return expected auth/guard behavior.
+3. Verify `/api/v1/tokens` and `/api/v1/spell/check` return expected auth/guard behavior.
 4. Verify `/intents` and `/runs` are denied without allowlist.
 
 ## Rollback

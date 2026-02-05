@@ -1,5 +1,4 @@
-import { headers } from "next/headers";
-import { getServerUserId } from "@/lib/auth/server";
+import { getServerAuthIdentity } from "@/lib/auth/server";
 
 type ExecAccessOk = { ok: true; userId: string };
 type ExecAccessDeniedReason = "unauthenticated" | "forbidden" | "not_configured";
@@ -37,8 +36,8 @@ const isEmailAllowed = (
 };
 
 export async function getExecAccess(): Promise<ExecAccess> {
-  const userId = await getServerUserId();
-  if (!userId) {
+  const identity = await getServerAuthIdentity();
+  if (!identity?.userId) {
     return {
       ok: false,
       reason: "unauthenticated",
@@ -46,8 +45,8 @@ export async function getExecAccess(): Promise<ExecAccess> {
     };
   }
 
-  const headerStore = await headers();
-  const email = headerStore.get("x-user-email") ?? "";
+  const userId = identity.userId;
+  const email = identity.email ?? "";
 
   const userAllowlist = parseAllowlist(process.env.EXEC_USER_ID_ALLOWLIST);
   const emailAllowlist = getAllowlist(

@@ -1,74 +1,76 @@
 import { cookies, headers } from "next/headers";
+import { type AuthIdentity, extractSupabaseIdentityFromCookies } from "./supabase-session";
 
-const FALLBACK_USER_ID = process.env.DEFAULT_USER_ID ?? null;
+const FALLBACK_USER_ID = process.env.DEFAULT_USER_ID?.trim() ?? null;
+const FALLBACK_USER_EMAIL = process.env.DEFAULT_USER_EMAIL?.trim() ?? null;
+const INTERNAL_REQUEST_SECRET = process.env.INTERNAL_REQUEST_SECRET?.trim() ?? null;
+const ALLOW_DEV_HEADER_AUTH = process.env.ALLOW_DEV_HEADER_AUTH === "1";
 
-const AUTH_COOKIE_REGEX = /^sb-[a-z0-9-]+-auth-token(\.\d+)?$/i;
-
-type AuthSession = {
-  user?: {
-    id?: string;
-  };
-};
-
-function decodeSupabaseSession(rawValue: string): AuthSession | null {
-  let value = rawValue;
-  if (value.startsWith("base64-")) {
-    value = value.slice("base64-".length);
-    try {
-      value = Buffer.from(value, "base64").toString("utf8");
-    } catch {
-      return null;
-    }
-  }
-
-  try {
-    return JSON.parse(value) as AuthSession;
-  } catch {
-    return null;
-  }
+function isProduction(): boolean {
+  return process.env.NODE_ENV === "production";
 }
 
-function extractSupabaseUserId(cookieStore: Awaited<ReturnType<typeof cookies>>) {
-  const allCookies = cookieStore.getAll();
-  const authCookies = allCookies.filter((cookie) => AUTH_COOKIE_REGEX.test(cookie.name));
-  if (authCookies.length === 0) return null;
+function canTrustForwardedHeaders(headerStore: Awaited<ReturnType<typeof headers>>): boolean {
+  if (INTERNAL_REQUEST_SECRET) {
+    return headerStore.get("x-internal-auth") === INTERNAL_REQUEST_SECRET;
+  }
+  if (isProduction()) {
+    return false;
+  }
+  return ALLOW_DEV_HEADER_AUTH;
+}
 
-  const grouped = new Map<string, { index: number; value: string }[]>();
-  for (const cookie of authCookies) {
-    const match = cookie.name.match(/^(sb-[a-z0-9-]+-auth-token)(?:\.(\d+))?$/i);
-    if (!match) continue;
-    const base = match[1];
-    const index = match[2] ? Number(match[2]) : 0;
-    const entry = grouped.get(base) ?? [];
-    entry.push({ index, value: cookie.value });
-    grouped.set(base, entry);
+function normalize(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+async function getIdentityFromTrustedHeaders(): Promise<AuthIdentity | null> {
+  const headerStore = await headers();
+  if (!canTrustForwardedHeaders(headerStore)) return null;
+
+  const userId = normalize(headerStore.get("x-user-id") ?? headerStore.get("x-user"));
+  if (!userId) return null;
+
+  const email = normalize(headerStore.get("x-user-email"));
+  return { userId, email };
+}
+
+async function getIdentityFromCookies(): Promise<AuthIdentity | null> {
+  const cookieStore = await cookies();
+
+  const explicitUserId =
+    normalize(cookieStore.get("x-user-id")?.value) ?? normalize(cookieStore.get("user_id")?.value);
+  if (explicitUserId) {
+    const explicitEmail =
+      normalize(cookieStore.get("x-user-email")?.value) ?? normalize(cookieStore.get("user_email")?.value);
+    return { userId: explicitUserId, email: explicitEmail };
   }
 
-  for (const [, chunks] of grouped) {
-    const ordered = [...chunks].sort((a, b) => a.index - b.index);
-    const joined = ordered.map((chunk) => chunk.value).join("");
-    const session = decodeSupabaseSession(joined);
-    if (session?.user?.id) return session.user.id;
+  return extractSupabaseIdentityFromCookies(cookieStore.getAll());
+}
+
+export async function getServerAuthIdentity(): Promise<AuthIdentity | null> {
+  const fromHeader = await getIdentityFromTrustedHeaders();
+  if (fromHeader) return fromHeader;
+
+  const fromCookie = await getIdentityFromCookies();
+  if (fromCookie) return fromCookie;
+
+  if (!isProduction() && FALLBACK_USER_ID) {
+    return { userId: FALLBACK_USER_ID, email: FALLBACK_USER_EMAIL };
   }
 
   return null;
 }
 
 export async function getServerUserId(): Promise<string | null> {
-  const headerStore = await headers();
-  const cookieStore = await cookies();
-  const header = headerStore.get("x-user-id") ?? headerStore.get("x-user");
-  if (header && header.length > 0) {
-    return header;
-  }
+  const identity = await getServerAuthIdentity();
+  return identity?.userId ?? null;
+}
 
-  const cookie = cookieStore.get("x-user-id")?.value ?? cookieStore.get("user_id")?.value;
-  if (cookie && cookie.length > 0) {
-    return cookie;
-  }
-
-  const supabaseUserId = extractSupabaseUserId(cookieStore);
-  if (supabaseUserId) return supabaseUserId;
-
-  return FALLBACK_USER_ID;
+export async function getServerUserEmail(): Promise<string | null> {
+  const identity = await getServerAuthIdentity();
+  return identity?.email ?? null;
 }

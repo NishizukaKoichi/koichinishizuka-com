@@ -73,6 +73,20 @@ if (!hasExecAllowlist) {
   warnings.push("Exec allowlist is unset; /intents and /runs will be denied");
 }
 
+const isProduction = (env.NODE_ENV ?? "").trim() === "production";
+const allowDevHeaderAuth = (env.ALLOW_DEV_HEADER_AUTH ?? "").trim() === "1";
+const hasInternalRequestSecret = Boolean((env.INTERNAL_REQUEST_SECRET ?? "").trim());
+
+if (isProduction && allowDevHeaderAuth) {
+  errors.push("ALLOW_DEV_HEADER_AUTH=1 is forbidden in production");
+}
+
+if (isProduction && !hasInternalRequestSecret) {
+  warnings.push(
+    "INTERNAL_REQUEST_SECRET is unset in production; forwarded x-user-id headers are disabled"
+  );
+}
+
 if (errors.length > 0) {
   console.error("[env:check] FAILED");
   for (const line of errors) {

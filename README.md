@@ -45,6 +45,7 @@ This repo is a gate, not documentation. If required fields are blank, you are no
 ## Getting Started
 - Fill required fields in docs/*.md.
 - Run `node scripts/verify.mjs` until it prints OK.
+- Run `pnpm env:check` before deploy/startup.
 - Optionally run `node scripts/init.mjs <product-name> <display-name?>` to replace README placeholders.
 
 ## SSOT

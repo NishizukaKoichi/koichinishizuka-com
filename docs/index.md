@@ -32,3 +32,4 @@ This is a gate, not reference material. Required fields must be completed before
 
 ## Implementation Map (Non-Gate)
 - UI → Backend gap matrix: docs/implementation/ui-backend-gap.md
+- Deploy runbook: docs/ops/deploy-runbook.md

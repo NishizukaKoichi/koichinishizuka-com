@@ -1,6 +1,7 @@
 # Release
 
 ## Release Checklist
+- Env check: `pnpm env:check` が `OK` を返すこと（失敗時はデプロイ停止）。
 - Rollout plan: 内部検証 → 限定ベータ → 一般公開の順で拡大。
 - Invariants check: 削除／編集 API 不在、record_hash 生成、サーバ時刻付与、追記のみ。
 - Offline check: オフライン確定が存在しないこと、draft のみ保存されること。

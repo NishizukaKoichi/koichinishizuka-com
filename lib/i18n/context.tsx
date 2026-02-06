@@ -5,6 +5,7 @@ import { translations, defaultLocale, type Locale, type TranslationKey } from ".
 
 interface I18nContextType {
   locale: Locale
+  language: Locale
   setLocale: (locale: Locale) => void
   t: (key: TranslationKey) => string
 }
@@ -47,7 +48,11 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     return currentTranslations[key] ?? fallbackTranslations[key] ?? key
   }
 
-  return <I18nContext.Provider value={{ locale, setLocale, t }}>{children}</I18nContext.Provider>
+  return (
+    <I18nContext.Provider value={{ locale, language: locale, setLocale, t }}>
+      {children}
+    </I18nContext.Provider>
+  )
 }
 
 export function useI18n() {

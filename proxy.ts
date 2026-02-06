@@ -49,6 +49,9 @@ export function proxy(request: NextRequest) {
   }
 
   if (pathname.startsWith("/api/")) {
+    if (pathname === "/api/i18n/translate") {
+      return NextResponse.next();
+    }
     if (inAllowedPrefixes(pathname, allowedApiPrefixes)) {
       return NextResponse.next();
     }

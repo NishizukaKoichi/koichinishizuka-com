@@ -41,7 +41,7 @@ type CredentialItem = {
 }
 
 export default function TalismanLoginPage() {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const router = useRouter()
   const { login } = useAuth()
   
@@ -74,7 +74,7 @@ export default function TalismanLoginPage() {
         const response = await fetch(`/api/v1/talisman/credentials?person_id=${encodeURIComponent(personId)}`)
         if (!response.ok) {
           const payload = await response.json().catch(() => null)
-          throw new Error(payload?.error || "Credentialの取得に失敗しました")
+          throw new Error(payload?.error || t("talisman.login.error.credentials_fetch"))
         }
         const data = (await response.json()) as {
           credentials: Array<{
@@ -96,7 +96,7 @@ export default function TalismanLoginPage() {
         setError(null)
       } catch (err) {
         if (!active) return
-        const message = err instanceof Error ? err.message : "Credentialの取得に失敗しました"
+        const message = err instanceof Error ? err.message : t("talisman.login.error.credentials_fetch")
         setError(message)
       } finally {
         if (active) setIsLoading(false)
@@ -108,7 +108,7 @@ export default function TalismanLoginPage() {
     return () => {
       active = false
     }
-  }, [])
+  }, [t])
 
   const handleVerify = async () => {
     if (!canProceed) return
@@ -120,12 +120,12 @@ export default function TalismanLoginPage() {
       const response = await fetch(`/api/v1/talisman/persons/${encodeURIComponent(personId)}/signal`)
       if (!response.ok) {
         const payload = await response.json().catch(() => null)
-        throw new Error(payload?.error || "認証に失敗しました")
+        throw new Error(payload?.error || t("talisman.login.error.authentication_failed"))
       }
       await login(personId)
       router.push("/talisman")
     } catch (err) {
-      const message = err instanceof Error ? err.message : "認証に失敗しました"
+      const message = err instanceof Error ? err.message : t("talisman.login.error.authentication_failed")
       setError(message)
     } finally {
       setVerifying(false)
@@ -139,6 +139,16 @@ export default function TalismanLoginPage() {
   const selectedCredentialData = credentials.filter(
     c => c.verified && selectedCredentials.includes(c.id)
   )
+  const selectedCount = selectedCredentials.length
+  const continueLabel = locale === "ja"
+    ? `${selectedCount}つの認証で続ける`
+    : `Continue with ${selectedCount} credential${selectedCount === 1 ? "" : "s"}`
+  const selectRequiredLabel = locale === "ja"
+    ? `認証手段を${requiredFactors}つ以上選択`
+    : `Select at least ${requiredFactors} credential${requiredFactors === 1 ? "" : "s"}`
+  const requiredFactorsLabel = locale === "ja"
+    ? `${requiredFactors}つの認証が必要`
+    : `${requiredFactors} credential${requiredFactors === 1 ? "" : "s"} required`
 
   const credentialIcon = (type: CredentialType) => {
     switch (type) {
@@ -189,14 +199,14 @@ export default function TalismanLoginPage() {
           <>
             {/* Title */}
             <div className="mb-8 text-center">
-              <h1 className="text-2xl font-light text-foreground mb-2">ログイン</h1>
+              <h1 className="text-2xl font-light text-foreground mb-2">{t("talisman.login.title")}</h1>
               <p className="text-sm text-muted-foreground">
-                登録済みの認証手段を選択してください
+                {t("talisman.login.subtitle")}
               </p>
               {requiredFactors > 1 && (
                 <Badge variant="outline" className="mt-2 text-amber-500 border-amber-500">
                   <Lock className="h-3 w-3 mr-1" />
-                  {requiredFactors}つの認証が必要
+                  {requiredFactorsLabel}
                 </Badge>
               )}
             </div>
@@ -211,7 +221,7 @@ export default function TalismanLoginPage() {
               {!isLoading && credentials.length === 0 && (
                 <Card>
                   <CardContent className="pt-4 text-sm text-muted-foreground">
-                    Credentialが未登録です。先に登録を完了してください。
+                    {t("talisman.login.no_credentials")}
                   </CardContent>
                 </Card>
               )}
@@ -264,20 +274,17 @@ export default function TalismanLoginPage() {
               disabled={!canProceed || isLoading}
               onClick={handleProceedToVerify}
             >
-              {canProceed 
-                ? `${selectedCredentials.length}つの認証で続ける`
-                : `認証手段を${requiredFactors}つ以上選択`
-              }
+              {canProceed ? continueLabel : selectRequiredLabel}
               {canProceed && <ArrowRight className="h-4 w-4" />}
             </Button>
 
             {/* Links */}
             <div className="mt-6 text-center space-y-2">
               <p className="text-sm text-muted-foreground">
-                アカウントをお持ちでない場合は
+                {t("talisman.login.no_account")}
               </p>
               <Link href="/talisman/credentials/new" className="text-sm text-cyan-500 hover:underline">
-                新規登録
+                {t("talisman.login.register")}
               </Link>
             </div>
           </>
@@ -285,9 +292,9 @@ export default function TalismanLoginPage() {
           <>
             {/* Verify Step */}
             <div className="mb-8 text-center">
-              <h1 className="text-2xl font-light text-foreground mb-2">認証</h1>
+              <h1 className="text-2xl font-light text-foreground mb-2">{t("talisman.login.verify_title")}</h1>
               <p className="text-sm text-muted-foreground">
-                選択した認証手段で本人確認を行います
+                {t("talisman.login.verify_subtitle")}
               </p>
             </div>
 
@@ -319,17 +326,17 @@ export default function TalismanLoginPage() {
                           disabled={verifying}
                         >
                           <Fingerprint className="h-4 w-4 mr-2" />
-                          {verifying ? "認証中..." : "パスキーで認証"}
+                          {verifying ? t("talisman.login.verifying") : t("talisman.login.verify_passkey")}
                         </Button>
                       )}
                       {credential.type === "email_magiclink" && (
                         <div className="space-y-3">
                           <p className="text-xs text-muted-foreground">
-                            メールアドレスに認証コードを送信しました
+                            {t("talisman.login.code_sent_email")}
                           </p>
                           <div className="flex gap-2">
                             <Input
-                              placeholder="認証コード"
+                              placeholder={t("talisman.login.code_placeholder")}
                               value={emailCode}
                               onChange={(e) => setEmailCode(e.target.value)}
                               className="flex-1"
@@ -339,7 +346,7 @@ export default function TalismanLoginPage() {
                               disabled={verifying || emailCode.length < 6}
                               className="bg-cyan-500 hover:bg-cyan-600 text-white"
                             >
-                              {verifying ? "..." : "確認"}
+                              {verifying ? "..." : t("talisman.login.confirm")}
                             </Button>
                           </div>
                         </div>
@@ -347,11 +354,11 @@ export default function TalismanLoginPage() {
                       {credential.type === "phone_otp" && (
                         <div className="space-y-3">
                           <p className="text-xs text-muted-foreground">
-                            SMSで認証コードを送信しました
+                            {t("talisman.login.code_sent_sms")}
                           </p>
                           <div className="flex gap-2">
                             <Input
-                              placeholder="認証コード"
+                              placeholder={t("talisman.login.code_placeholder")}
                               className="flex-1"
                             />
                             <Button 
@@ -359,7 +366,7 @@ export default function TalismanLoginPage() {
                               disabled={verifying}
                               className="bg-cyan-500 hover:bg-cyan-600 text-white"
                             >
-                              {verifying ? "..." : "確認"}
+                              {verifying ? "..." : t("talisman.login.confirm")}
                             </Button>
                           </div>
                         </div>
@@ -375,7 +382,7 @@ export default function TalismanLoginPage() {
                           disabled={verifying}
                         >
                           <Globe className="h-4 w-4 mr-2" />
-                          {verifying ? "認証中..." : "連携サービスで認証"}
+                          {verifying ? t("talisman.login.verifying") : t("talisman.login.verify_oauth")}
                         </Button>
                       )}
                     </CardContent>
@@ -389,7 +396,7 @@ export default function TalismanLoginPage() {
               className="w-full mt-4"
               onClick={() => setStep("select")}
             >
-              戻る
+              {t("common.back")}
             </Button>
           </>
         )}

@@ -298,6 +298,16 @@ export const translations = {
     "site.contact_desc": "連絡方法",
     "site.contact_email": "メールで連絡",
 
+    // Product switcher
+    "switcher.products": "Products",
+    "switcher.current": "現在",
+    "switcher.back_home": "Koichinishizuka.com へ",
+    "switcher.product.sigil.desc": "術式の事前開示",
+    "switcher.product.epoch.desc": "不可逆な時間の記録",
+    "switcher.product.talisman.desc": "同一人物性の観測基盤",
+    "switcher.product.pact.desc": "雇用・報酬・契約状態遷移",
+    "switcher.product.spell.desc": "権利付与・配布制御",
+
     // Product definitions
     "product.sigil.name": "Sigil",
     "product.sigil.definition": "場に適用される前提条件を、術式として事前に明示する",
@@ -407,6 +417,22 @@ export const translations = {
     "talisman.integration.webhook": "Webhook URL",
     "talisman.integration.policy": "Policy",
     "talisman.integration.policy_desc": "scoreとflagsに基づく条件を設定",
+    "talisman.login.title": "ログイン",
+    "talisman.login.subtitle": "登録済みの認証手段を選択してください",
+    "talisman.login.no_credentials": "Credentialが未登録です。先に登録を完了してください。",
+    "talisman.login.no_account": "アカウントをお持ちでない場合は",
+    "talisman.login.register": "新規登録",
+    "talisman.login.verify_title": "認証",
+    "talisman.login.verify_subtitle": "選択した認証手段で本人確認を行います",
+    "talisman.login.verifying": "認証中...",
+    "talisman.login.verify_passkey": "パスキーで認証",
+    "talisman.login.code_sent_email": "メールアドレスに認証コードを送信しました",
+    "talisman.login.code_sent_sms": "SMSで認証コードを送信しました",
+    "talisman.login.code_placeholder": "認証コード",
+    "talisman.login.confirm": "確認",
+    "talisman.login.verify_oauth": "連携サービスで認証",
+    "talisman.login.error.credentials_fetch": "Credentialの取得に失敗しました",
+    "talisman.login.error.authentication_failed": "認証に失敗しました",
 
     // Sigil
     "sigil.title": "Sigil",
@@ -930,6 +956,16 @@ export const translations = {
     "site.contact_desc": "How to reach me",
     "site.contact_email": "Contact via Email",
 
+    // Product switcher
+    "switcher.products": "Products",
+    "switcher.current": "Current",
+    "switcher.back_home": "Back to Koichinishizuka.com",
+    "switcher.product.sigil.desc": "Pre-disclosure of operational rules",
+    "switcher.product.epoch.desc": "Immutable time records",
+    "switcher.product.talisman.desc": "Identity observation infrastructure",
+    "switcher.product.pact.desc": "Employment/compensation/contract transitions",
+    "switcher.product.spell.desc": "Entitlement and distribution control",
+
     // Product definitions
     "product.sigil.name": "Sigil",
     "product.sigil.definition": "Pre-disclose prerequisites applied to environments as specifications",
@@ -1038,6 +1074,22 @@ export const translations = {
     "talisman.integration.webhook": "Webhook URL",
     "talisman.integration.policy": "Policy",
     "talisman.integration.policy_desc": "Set conditions based on score and flags",
+    "talisman.login.title": "Login",
+    "talisman.login.subtitle": "Select a registered authentication method",
+    "talisman.login.no_credentials": "No credentials are registered. Complete registration first.",
+    "talisman.login.no_account": "If you don't have an account",
+    "talisman.login.register": "Sign up",
+    "talisman.login.verify_title": "Verify",
+    "talisman.login.verify_subtitle": "Verify your identity with the selected authentication method",
+    "talisman.login.verifying": "Verifying...",
+    "talisman.login.verify_passkey": "Verify with passkey",
+    "talisman.login.code_sent_email": "A verification code was sent to your email address",
+    "talisman.login.code_sent_sms": "A verification code was sent via SMS",
+    "talisman.login.code_placeholder": "Verification code",
+    "talisman.login.confirm": "Confirm",
+    "talisman.login.verify_oauth": "Verify with linked provider",
+    "talisman.login.error.credentials_fetch": "Failed to load credentials",
+    "talisman.login.error.authentication_failed": "Authentication failed",
 
     // Sigil
     "sigil.title": "Sigil",

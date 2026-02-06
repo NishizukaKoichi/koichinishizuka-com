@@ -7,6 +7,40 @@ const baseUrl =
 const authCookieName = process.env.SMOKE_AUTH_COOKIE_NAME ?? "user_id";
 const internalAuthSecret = process.env.SMOKE_INTERNAL_REQUEST_SECRET;
 const smokeFlow = process.env.SMOKE_FLOW ?? "platform";
+const smokeTarget = (process.env.SMOKE_TARGET ?? "").trim().toLowerCase();
+
+const targetProbe = {
+  epoch: {
+    productPath: "/epoch",
+    allowedApiProbe: "/api/records",
+    deniedApiProbe: "/api/v1/spell/check",
+    deniedPageProbe: "/spell",
+  },
+  sigil: {
+    productPath: "/sigil",
+    allowedApiProbe: "/api/v1/sigil/spaces",
+    deniedApiProbe: "/api/records",
+    deniedPageProbe: "/epoch",
+  },
+  pact: {
+    productPath: "/pact",
+    allowedApiProbe: "/api/v1/pact/employees",
+    deniedApiProbe: "/api/records",
+    deniedPageProbe: "/spell",
+  },
+  talisman: {
+    productPath: "/talisman",
+    allowedApiProbe: "/api/v1/talisman/persons",
+    deniedApiProbe: "/api/records",
+    deniedPageProbe: "/pact",
+  },
+  spell: {
+    productPath: "/spell",
+    allowedApiProbe: "/api/v1/spell/check",
+    deniedApiProbe: "/api/records",
+    deniedPageProbe: "/talisman",
+  },
+};
 
 function fail(message, details) {
   console.error(`[smoke] FAIL: ${message}`);
@@ -45,6 +79,11 @@ async function requestPage(path) {
   return response;
 }
 
+async function requestStatus(path, init = {}) {
+  const response = await fetch(`${baseUrl}${path}`, init);
+  return response.status;
+}
+
 function assert(condition, message, details) {
   if (!condition) {
     fail(message, details);
@@ -52,6 +91,52 @@ function assert(condition, message, details) {
 }
 
 async function run() {
+  if (smokeFlow === "target-guard") {
+    const probe = targetProbe[smokeTarget];
+    if (!probe) {
+      fail("SMOKE_TARGET must be one of epoch|sigil|pact|talisman|spell when SMOKE_FLOW=target-guard");
+    }
+
+    console.log(`[smoke] baseUrl=${baseUrl}`);
+    console.log(`[smoke] flow=target-guard`);
+    console.log(`[smoke] target=${smokeTarget}`);
+
+    const rootStatus = await requestStatus("/");
+    assert(
+      rootStatus !== 404,
+      "root should be reachable on target deployment",
+      { status: rootStatus }
+    );
+
+    const productStatus = await requestStatus(probe.productPath);
+    assert(productStatus !== 404, "product root is not reachable", {
+      path: probe.productPath,
+      status: productStatus,
+    });
+
+    const deniedPageStatus = await requestStatus(probe.deniedPageProbe);
+    assert(deniedPageStatus === 404, "foreign product page is not blocked", {
+      path: probe.deniedPageProbe,
+      status: deniedPageStatus,
+    });
+
+    const allowedApiStatus = await requestStatus(probe.allowedApiProbe);
+    assert(
+      allowedApiStatus !== 404,
+      "target-owned API path should not be hidden",
+      { path: probe.allowedApiProbe, status: allowedApiStatus }
+    );
+
+    const deniedApiStatus = await requestStatus(probe.deniedApiProbe);
+    assert(deniedApiStatus === 404, "foreign API path is not blocked", {
+      path: probe.deniedApiProbe,
+      status: deniedApiStatus,
+    });
+
+    console.log("[smoke] OK");
+    return;
+  }
+
   const userId = randomUUID();
   const recordContent = `smoke-${Date.now()}`;
   const spellId = randomUUID();

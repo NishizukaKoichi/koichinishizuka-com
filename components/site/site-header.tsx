@@ -5,6 +5,8 @@ import { usePathname, useRouter } from "next/navigation"
 import { useState } from "react"
 import { Menu, X, ChevronLeft } from "@/components/icons"
 import { Button } from "@/components/ui/button"
+import { EpochLanguageSelector } from "@/components/epoch-language-selector"
+import { ProductSwitcher } from "@/components/product-switcher"
 import { useI18n } from "@/lib/i18n/context"
 import { cn } from "@/lib/utils"
 
@@ -68,6 +70,11 @@ export function SiteHeader() {
             </Link>
           ))}
         </nav>
+
+        <div className="hidden md:flex items-center gap-3">
+          <EpochLanguageSelector />
+          <ProductSwitcher />
+        </div>
 
         {/* Mobile menu button */}
         <div className="flex items-center gap-2 md:hidden">

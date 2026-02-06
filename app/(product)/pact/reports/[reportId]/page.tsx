@@ -69,7 +69,7 @@ export default function PactReportDetailPage() {
       setError(null)
       try {
         const reportRes = await fetch(`/api/v1/pact/reports/${reportId}`, {
-          headers: { "x-user-id": userId },
+          headers: undefined,
         })
         if (!reportRes.ok) {
           throw new Error("レポートの取得に失敗しました")
@@ -77,7 +77,7 @@ export default function PactReportDetailPage() {
         const reportData = (await reportRes.json()) as { report: PactReport }
 
         const employeeRes = await fetch(`/api/v1/pact/employees/${reportData.report.employeeId}`, {
-          headers: { "x-user-id": userId },
+          headers: undefined,
         })
         const employeeData = employeeRes.ok
           ? ((await employeeRes.json()) as { employee: Employee })

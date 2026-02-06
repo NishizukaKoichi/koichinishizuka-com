@@ -75,7 +75,7 @@ export default function SigilSpacesPage() {
       setError(null)
       try {
         const res = await fetch("/api/v1/sigil/spaces", {
-          headers: { "x-user-id": userId },
+          headers: undefined,
         })
         if (!res.ok) {
           throw new Error("スペースの取得に失敗しました")
@@ -87,7 +87,7 @@ export default function SigilSpacesPage() {
             let chapters = 0
             try {
               const readerRes = await fetch(`/api/v1/sigil/reader/${space.spaceId}`, {
-                headers: { "x-user-id": userId },
+                headers: undefined,
               })
               if (readerRes.ok) {
                 const readerData = (await readerRes.json()) as { chapters: unknown[] }

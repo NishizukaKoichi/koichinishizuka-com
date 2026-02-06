@@ -56,7 +56,7 @@ export function EpochOrgList() {
       setError(null)
       try {
         const response = await fetch("/api/epoch/orgs/mine", {
-          headers: { "x-user-id": userId },
+          headers: undefined,
         })
         if (!response.ok) {
           const payload = await response.json().catch(() => null)
@@ -86,8 +86,7 @@ export function EpochOrgList() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-user-id": userId,
-        },
+          },
         body: JSON.stringify({ name: newOrgName, slug: newOrgSlug }),
       })
       if (!response.ok) {

@@ -88,7 +88,7 @@ export default function SigilExplorePage() {
         let adoptionIds: string[] = []
         if (userId) {
           const adoptionRes = await fetch("/api/v1/sigil/adoptions", {
-            headers: { "x-user-id": userId },
+            headers: undefined,
           })
           if (adoptionRes.ok) {
             const adoptionData = (await adoptionRes.json()) as { adoptions: Adoption[] }
@@ -147,7 +147,7 @@ export default function SigilExplorePage() {
       try {
         const res = await fetch(`/api/v1/sigil/spaces/${selectedSpec.id}/adopt`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", "x-user-id": userId },
+          headers: { "Content-Type": "application/json", },
           body: JSON.stringify({ status: "accepted" }),
         })
         if (!res.ok) {

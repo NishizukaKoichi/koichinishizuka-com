@@ -129,8 +129,7 @@ export function EpochDepartmentTree({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-user-id": userId,
-        },
+          },
         body: JSON.stringify({
           name: newDeptName.trim(),
           parentId: newDeptParent,
@@ -170,8 +169,7 @@ export function EpochDepartmentTree({
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
-            "x-user-id": userId,
-          },
+            },
           body: JSON.stringify({
             name: editingDept.name,
             parentId: editingDept.parentId,
@@ -210,7 +208,7 @@ export function EpochDepartmentTree({
         `/api/epoch/orgs/${orgId}/departments/${dept.id}`,
         {
           method: "DELETE",
-          headers: { "x-user-id": userId },
+          headers: undefined,
         }
       )
       if (!response.ok) {

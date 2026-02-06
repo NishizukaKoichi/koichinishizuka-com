@@ -37,7 +37,7 @@ export default function SigilChapterEditPage() {
       setError(null)
       try {
         const res = await fetch(`/api/v1/sigil/chapters/${chapterId}`, {
-          headers: userId ? { "x-user-id": userId } : undefined,
+          headers: undefined,
         })
         if (!res.ok) {
           throw new Error("章の取得に失敗しました")
@@ -72,7 +72,7 @@ export default function SigilChapterEditPage() {
     try {
       const res = await fetch(`/api/v1/sigil/chapters/${chapterId}/revisions`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-id": userId },
+        headers: { "Content-Type": "application/json", },
         body: JSON.stringify({ title, body: content }),
       })
       if (!res.ok) {

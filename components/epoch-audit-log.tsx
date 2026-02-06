@@ -63,7 +63,7 @@ export function EpochAuditLog() {
       setError(null)
       try {
         const response = await fetch(`/api/epoch/audit?filter=${filter}`, {
-          headers: { "x-user-id": userId },
+          headers: undefined,
         })
         if (!response.ok) {
           const payload = await response.json().catch(() => null)

@@ -46,7 +46,7 @@ export default function SigilAnalyticsPage() {
       setError(null)
       try {
         const spacesRes = await fetch("/api/v1/sigil/spaces", {
-          headers: { "x-user-id": userId },
+          headers: undefined,
         })
         if (!spacesRes.ok) {
           throw new Error("スペースの取得に失敗しました")
@@ -56,7 +56,7 @@ export default function SigilAnalyticsPage() {
         const stats = await Promise.all(
           (spacesData.spaces ?? []).map(async (space) => {
             const res = await fetch(`/api/v1/sigil/analytics/${space.spaceId}`, {
-              headers: { "x-user-id": userId },
+              headers: undefined,
             })
             if (!res.ok) {
               return {

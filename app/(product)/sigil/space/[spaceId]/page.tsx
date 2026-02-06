@@ -55,7 +55,7 @@ export default function SigilSpacePage() {
       setError(null)
       try {
         const res = await fetch(`/api/v1/sigil/reader/${spaceId}`, {
-          headers: userId ? { "x-user-id": userId } : undefined,
+          headers: undefined,
         })
         if (!res.ok) {
           throw new Error("スペースの取得に失敗しました")

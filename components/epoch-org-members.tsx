@@ -91,7 +91,7 @@ export function EpochOrgMembers({ orgId }: EpochOrgMembersProps) {
       setError(null)
       try {
         const response = await fetch(`/api/epoch/orgs/${orgId}/members`, {
-          headers: { "x-user-id": userId },
+          headers: undefined,
         })
         if (!response.ok) {
           const payload = await response.json().catch(() => null)
@@ -138,8 +138,7 @@ export function EpochOrgMembers({ orgId }: EpochOrgMembersProps) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-user-id": userId,
-        },
+          },
         body: JSON.stringify({
           email: inviteEmail,
           role: inviteRole,

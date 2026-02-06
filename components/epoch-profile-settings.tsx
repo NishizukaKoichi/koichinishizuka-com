@@ -79,7 +79,7 @@ export function EpochProfileSettings() {
       setError(null)
       try {
         const response = await fetch("/api/epoch/profile", {
-          headers: { "x-user-id": userId },
+          headers: undefined,
         })
         if (!response.ok) {
           const payload = await response.json().catch(() => null)
@@ -173,8 +173,7 @@ export function EpochProfileSettings() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-user-id": userId,
-        },
+          },
         body: JSON.stringify(payload),
       })
       if (!response.ok) {

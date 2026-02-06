@@ -41,7 +41,7 @@ export default function SigilChapterPage() {
       setLoading(true)
       setError(null)
       try {
-        const headers = userId ? { "x-user-id": userId } : undefined
+        const headers = userId ? { } : undefined
         const res = await fetch(`/api/v1/sigil/reader/${spaceId}`, { headers })
         if (!res.ok) {
           const payload = await res.json().catch(() => null)

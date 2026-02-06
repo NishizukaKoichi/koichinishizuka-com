@@ -185,8 +185,7 @@ async function run() {
     method: "POST",
     headers: authHeaders(userId, {
       "content-type": "application/json",
-      "x-user-id": userId,
-    }),
+      }),
     body: JSON.stringify({ name: `smoke-${Date.now()}` }),
   });
   assert(createKey.response.ok, "developer key creation failed", createKey.json);
@@ -200,8 +199,7 @@ async function run() {
     method: "POST",
     headers: authHeaders(userId, {
       "content-type": "application/json",
-      "x-user-id": userId,
-    }),
+      }),
     body: JSON.stringify({
       scope: "spell.check",
       action: "grant",
@@ -250,7 +248,7 @@ async function run() {
 
   const revokeKey = await requestJson(`/api/v1/developer-keys/${keyId}/revoke`, {
     method: "POST",
-    headers: authHeaders(userId, { "x-user-id": userId }),
+    headers: authHeaders(userId, { }),
   });
   assert(revokeKey.response.ok, "developer key revoke failed", revokeKey.json);
 

@@ -83,7 +83,7 @@ export function SpellSettings() {
     setError(null)
     try {
       const [keysRes, ledgerRes] = await Promise.all([
-        fetch("/api/v1/developer-keys", { headers: { "x-user-id": userId } }),
+        fetch("/api/v1/developer-keys", { headers: undefined }),
         fetch("/api/v1/spell/ledger?limit=1"),
       ])
 
@@ -135,7 +135,7 @@ export function SpellSettings() {
     try {
       const response = await fetch("/api/v1/developer-keys", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-id": userId },
+        headers: { "Content-Type": "application/json", },
         body: JSON.stringify({ name: "spell-default" }),
       })
       if (!response.ok) {
@@ -162,7 +162,7 @@ export function SpellSettings() {
     try {
       const response = await fetch(`/api/v1/developer-keys/${activeKey.keyId}/rotate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-id": userId },
+        headers: { "Content-Type": "application/json", },
         body: JSON.stringify({}),
       })
       if (!response.ok) {

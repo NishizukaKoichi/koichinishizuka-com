@@ -53,7 +53,7 @@ function getCookieValue(request: Request, key: string): string | null {
 }
 
 export function getRequestUserId(request: Request): string | null {
-  const cookieUserId = normalize(getCookieValue(request, "x-user-id") ?? getCookieValue(request, "user_id"));
+  const cookieUserId = normalize(getCookieValue(request, "user_id"));
   if (cookieUserId) {
     return cookieUserId;
   }
@@ -75,7 +75,7 @@ export function getRequestUserId(request: Request): string | null {
 
 export function getRequestUserEmail(request: Request): string | null {
   const cookieEmail = normalize(
-    getCookieValue(request, "x-user-email") ?? getCookieValue(request, "user_email")
+    getCookieValue(request, "user_email")
   );
   if (cookieEmail) {
     return cookieEmail;

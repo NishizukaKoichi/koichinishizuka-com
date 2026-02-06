@@ -96,7 +96,7 @@ export default function PactReportsPage() {
       setLoading(true)
       setError(null)
       try {
-        const headers = { "x-user-id": userId }
+        const headers = { }
         const [reportRes, employeeRes] = await Promise.all([
           fetch("/api/v1/pact/reports", { headers }),
           fetch("/api/v1/pact/employees", { headers }),

@@ -37,7 +37,7 @@ export default function SigilTocPage() {
       setError(null)
       try {
         const res = await fetch(`/api/v1/sigil/reader/${spaceId}`, {
-          headers: userId ? { "x-user-id": userId } : undefined,
+          headers: undefined,
         })
         if (!res.ok) {
           throw new Error("目次の取得に失敗しました")

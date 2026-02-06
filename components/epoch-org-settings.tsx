@@ -58,7 +58,7 @@ export function EpochOrgSettings({ orgId }: EpochOrgSettingsProps) {
       setError(null)
       try {
         const response = await fetch(`/api/epoch/orgs/${orgId}`, {
-          headers: { "x-user-id": userId },
+          headers: undefined,
         })
         if (!response.ok) {
           const payload = await response.json().catch(() => null)
@@ -91,8 +91,7 @@ export function EpochOrgSettings({ orgId }: EpochOrgSettingsProps) {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          "x-user-id": userId,
-        },
+          },
         body: JSON.stringify({
           name: orgName,
           slug: orgSlug,
@@ -122,7 +121,7 @@ export function EpochOrgSettings({ orgId }: EpochOrgSettingsProps) {
     try {
       const response = await fetch(`/api/epoch/orgs/${orgId}`, {
         method: "DELETE",
-        headers: { "x-user-id": userId },
+        headers: undefined,
       })
       if (!response.ok) {
         const payload = await response.json().catch(() => null)

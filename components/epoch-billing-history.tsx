@@ -32,7 +32,7 @@ export function EpochBillingHistory() {
       setError(null)
       try {
         const response = await fetch("/api/epoch/billing/history", {
-          headers: { "x-user-id": userId },
+          headers: undefined,
         })
         if (!response.ok) {
           const payload = await response.json().catch(() => null)

@@ -167,9 +167,7 @@ export function DeveloperPortal() {
     setError(null)
     try {
       const response = await fetch("/api/v1/developer-keys", {
-        headers: {
-          "x-user-id": userId,
-        },
+        headers: undefined,
       })
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}))
@@ -180,9 +178,7 @@ export function DeveloperPortal() {
       const fetchedKeys = await Promise.all(
         (payload.keys ?? []).map(async (key: any) => {
           const scopesResponse = await fetch(`/api/v1/developer-keys/${key.key_id}/scopes`, {
-            headers: {
-              "x-user-id": userId,
-            },
+            headers: undefined,
           })
           const scopesPayload = scopesResponse.ok
             ? await scopesResponse.json()
@@ -226,8 +222,7 @@ export function DeveloperPortal() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-user-id": userId,
-        },
+          },
         body: JSON.stringify({ name: newKeyName }),
       })
       if (!response.ok) {
@@ -245,8 +240,7 @@ export function DeveloperPortal() {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "x-user-id": userId,
-            },
+              },
             body: JSON.stringify({
               scope: scopeId,
               action: "grant",
@@ -273,9 +267,7 @@ export function DeveloperPortal() {
     try {
       const response = await fetch(`/api/v1/developer-keys/${id}/revoke`, {
         method: "POST",
-        headers: {
-          "x-user-id": userId,
-        },
+        headers: undefined,
       })
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}))

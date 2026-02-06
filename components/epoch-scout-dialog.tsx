@@ -73,8 +73,7 @@ export function EpochScoutDialog({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-user-id": userId,
-        },
+          },
         body: JSON.stringify({
           targetUserId: targetUser.userId,
           initiatorOrgName: senderInfo.organization || null,
@@ -112,9 +111,7 @@ export function EpochScoutDialog({
       const endpoint = accept ? "accept" : "decline"
       const response = await fetch(`/api/epoch/scouts/${scoutId}/${endpoint}`, {
         method: "POST",
-        headers: {
-          "x-user-id": userId,
-        },
+        headers: undefined,
       })
       if (!response.ok) {
         const payload = await response.json().catch(() => null)

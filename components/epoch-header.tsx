@@ -68,10 +68,10 @@ export function EpochHeader() {
       try {
         const [orgResponse, scoutResponse] = await Promise.all([
           fetch("/api/epoch/orgs/mine", {
-            headers: { "x-user-id": userId },
+            headers: undefined,
           }),
           fetch("/api/epoch/scouts", {
-            headers: { "x-user-id": userId },
+            headers: undefined,
           }),
         ])
 

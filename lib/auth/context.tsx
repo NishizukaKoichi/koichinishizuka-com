@@ -1,6 +1,29 @@
 "use client"
 
-import { createContext, useContext, useState, type ReactNode } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
+
+type AuthSession = {
+  user_id: string | null
+  email: string | null
+  is_logged_in: boolean
+  is_admin: boolean
+}
+
+type TalismanCredential = {
+  credential_id: string
+  type:
+    | "email_magiclink"
+    | "phone_otp"
+    | "oauth_google"
+    | "oauth_apple"
+    | "oauth_microsoft"
+    | "oauth_x"
+    | "passkey"
+    | "payment_card"
+  normalized_hash: string
+  revoked_at: string | null
+  issued_at?: string
+}
 
 export interface Credential {
   id: string
@@ -11,91 +34,156 @@ export interface Credential {
 
 interface AuthContextType {
   isLoggedIn: boolean
-  isRegistered: boolean // アカウント登録済みか
-  isAdmin: boolean // koichinishizuka.com の管理者かどうか
+  isRegistered: boolean
+  isAdmin: boolean
   userId: string | null
   credentials: Credential[]
   credentialCount: number
-  hasMinimumCredentials: boolean // 3つ以上のCredentialがあるか
-  login: () => void
-  logout: () => void
-  register: (initialCredential: Credential) => void // 新規登録（最初の認証手段を同時に登録）
+  hasMinimumCredentials: boolean
+  login: (userId?: string, email?: string | null) => Promise<void>
+  logout: () => Promise<void>
+  register: (initialCredential: Credential) => Promise<void>
   addCredential: (credential: Credential) => void
+  refreshSession: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
 
-// デモ用: 登録済みユーザーの認証手段（実際はDB/APIから取得）
-const mockRegisteredCredentials: Credential[] = [
-  { id: "cred-1", type: "passkey", label: "MacBook Pro", verifiedAt: "2025-01-15T10:00:00Z" },
-  { id: "cred-2", type: "email", label: "koichi@example.com", verifiedAt: "2025-01-10T08:00:00Z" },
-  { id: "cred-3", type: "phone", label: "+81 90-****-1234", verifiedAt: "2025-01-12T14:00:00Z" },
-]
+function mapCredentialType(type: TalismanCredential["type"]): Credential["type"] {
+  if (type === "passkey") return "passkey"
+  if (type === "email_magiclink") return "email"
+  if (type === "phone_otp") return "phone"
+  if (type.startsWith("oauth_")) return "oauth"
+  return "recovery"
+}
 
-// 管理者のユーザーID（koichinishizuka本人）
-const ADMIN_USER_ID = "koichinishizuka"
+function formatLabel(credential: TalismanCredential): string {
+  const hash = credential.normalized_hash?.trim()
+  if (!hash) return credential.type
+  if (hash.length <= 12) return hash
+  return `${hash.slice(0, 6)}...${hash.slice(-4)}`
+}
+
+function toCredential(credential: TalismanCredential): Credential {
+  return {
+    id: credential.credential_id,
+    type: mapCredentialType(credential.type),
+    label: formatLabel(credential),
+    verifiedAt: credential.issued_at ?? new Date().toISOString(),
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  // デモ用: 初期状態を設定（実際は未登録・未ログイン状態から始まる）
-  const [isRegistered, setIsRegistered] = useState(true)
-  const [isLoggedIn, setIsLoggedIn] = useState(true)
-  const [userId, setUserId] = useState<string | null>(ADMIN_USER_ID) // デモ用: 管理者としてログイン
-  const [credentials, setCredentials] = useState<Credential[]>(mockRegisteredCredentials)
-  
-  // 管理者判定: ログイン中かつユーザーIDが管理者と一致
-  const isAdmin = isLoggedIn && userId === ADMIN_USER_ID
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [isRegistered, setIsRegistered] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [credentials, setCredentials] = useState<Credential[]>([])
 
-  const credentialCount = credentials.length
-  const hasMinimumCredentials = credentialCount >= 3
-
-  // 新規登録: 最初の認証手段を使って登録 → そのままその認証手段が1つ目のCredentialになる
-  const register = (initialCredential: Credential) => {
-    const newUserId = `user-${Date.now()}` // 実際はサーバーで生成
-    setUserId(newUserId)
-    setCredentials([initialCredential])
-    setIsRegistered(true)
-    setIsLoggedIn(true)
-  }
-
-  const login = () => {
-    setIsLoggedIn(true)
-    // 登録済みのCredentialを復元（実際はAPIから取得）
-    if (credentials.length === 0) {
-      setCredentials(mockRegisteredCredentials)
+  const refreshSession = useCallback(async () => {
+    const sessionResponse = await fetch("/api/v1/auth/session", { cache: "no-store" })
+    if (!sessionResponse.ok) {
+      setIsLoggedIn(false)
+      setIsRegistered(false)
+      setIsAdmin(false)
+      setUserId(null)
+      setCredentials([])
+      return
     }
-    // デモ用: ログイン時は管理者としてログイン
-    setUserId(ADMIN_USER_ID)
-  }
 
-  const logout = () => {
+    const session = (await sessionResponse.json()) as AuthSession
+    const currentUserId = session.user_id
+
+    setIsLoggedIn(Boolean(session.is_logged_in && currentUserId))
+    setIsRegistered(Boolean(currentUserId))
+    setIsAdmin(Boolean(session.is_admin))
+    setUserId(currentUserId)
+
+    if (!currentUserId) {
+      setCredentials([])
+      return
+    }
+
+    const credentialsResponse = await fetch(
+      `/api/v1/talisman/credentials?person_id=${encodeURIComponent(currentUserId)}`,
+      { cache: "no-store" }
+    )
+
+    if (!credentialsResponse.ok) {
+      setCredentials([])
+      return
+    }
+
+    const data = (await credentialsResponse.json()) as { credentials: TalismanCredential[] }
+    const activeCredentials = Array.isArray(data.credentials)
+      ? data.credentials.filter((credential) => !credential.revoked_at).map(toCredential)
+      : []
+
+    setCredentials(activeCredentials)
+  }, [])
+
+    useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void refreshSession()
+  }, [refreshSession])
+
+  const login = useCallback(async (nextUserId?: string, email?: string | null) => {
+    const payload: { user_id?: string; email?: string } = {}
+    if (nextUserId) payload.user_id = nextUserId
+    if (email) payload.email = email
+
+    const response = await fetch("/api/v1/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => null)
+      throw new Error(error?.error ?? "Login failed")
+    }
+
+    await refreshSession()
+  }, [refreshSession])
+
+  const logout = useCallback(async () => {
+    await fetch("/api/v1/auth/logout", { method: "POST" })
     setIsLoggedIn(false)
+    setIsRegistered(false)
+    setIsAdmin(false)
     setUserId(null)
-    // Credentialはログアウトしても保持（登録済み状態は維持）
-  }
+    setCredentials([])
+  }, [])
 
-  const addCredential = (credential: Credential) => {
+  const register = useCallback(async (initialCredential: Credential) => {
+    const generatedUserId = `user-${Date.now()}`
+    await login(generatedUserId)
+    setCredentials([initialCredential])
+  }, [login])
+
+  const addCredential = useCallback((credential: Credential) => {
     setCredentials((prev) => [...prev, credential])
-  }
+  }, [])
 
-  return (
-    <AuthContext.Provider
-      value={{
-        isLoggedIn,
-        isRegistered,
-        isAdmin,
-        userId,
-        credentials,
-        credentialCount,
-        hasMinimumCredentials,
-        login,
-        logout,
-        register,
-        addCredential,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  )
+  const value = useMemo<AuthContextType>(() => {
+    const credentialCount = credentials.length
+    return {
+      isLoggedIn,
+      isRegistered,
+      isAdmin,
+      userId,
+      credentials,
+      credentialCount,
+      hasMinimumCredentials: credentialCount >= 3,
+      login,
+      logout,
+      register,
+      addCredential,
+      refreshSession,
+    }
+  }, [isLoggedIn, isRegistered, isAdmin, userId, credentials, login, logout, register, addCredential, refreshSession])
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {

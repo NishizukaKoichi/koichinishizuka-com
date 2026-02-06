@@ -7,7 +7,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useI18n } from "@/lib/i18n/context"
-import { ensurePersonId } from "@/lib/talisman/client"
 
 type DeveloperKey = {
   keyId: string
@@ -23,7 +22,6 @@ export function TalismanIntegration() {
   const [webhookUrl, setWebhookUrl] = useState("")
   const [keys, setKeys] = useState<DeveloperKey[]>([])
   const [keySecret, setKeySecret] = useState<string | null>(null)
-  const [ownerId, setOwnerId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -39,11 +37,7 @@ export function TalismanIntegration() {
 
     const load = async () => {
       try {
-        const personId = await ensurePersonId()
-        if (!active) return
-        setOwnerId(personId)
-
-        const response = await fetch(`/api/v1/developer-keys?owner_user_id=${encodeURIComponent(personId)}`)
+        const response = await fetch("/api/v1/developer-keys")
         if (!response.ok) {
           const payload = await response.json().catch(() => null)
           throw new Error(payload?.error || "Developer Keyの取得に失敗しました")
@@ -90,16 +84,12 @@ export function TalismanIntegration() {
   }
 
   const createKey = async () => {
-    if (!ownerId) return
     setIsSubmitting(true)
     try {
       const response = await fetch("/api/v1/developer-keys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          owner_user_id: ownerId,
-          name: "default",
-        }),
+        body: JSON.stringify({ name: "default" }),
       })
       if (!response.ok) {
         const payload = await response.json().catch(() => null)
@@ -134,13 +124,12 @@ export function TalismanIntegration() {
   }
 
   const rotateKey = async () => {
-    if (!ownerId || !activeKey) return
+    if (!activeKey) return
     setIsSubmitting(true)
     try {
       const response = await fetch(`/api/v1/developer-keys/${activeKey.keyId}/rotate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ owner_user_id: ownerId }),
       })
       if (!response.ok) {
         const payload = await response.json().catch(() => null)

@@ -86,7 +86,7 @@ export default function TransitionsPage() {
       setLoading(true)
       setError(null)
       try {
-        const headers = { "x-user-id": userId }
+        const headers = { }
         const [transitionRes, employeeRes] = await Promise.all([
           fetch("/api/v1/pact/transitions", { headers }),
           fetch("/api/v1/pact/employees", { headers }),

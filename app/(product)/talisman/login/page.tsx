@@ -122,7 +122,7 @@ export default function TalismanLoginPage() {
         const payload = await response.json().catch(() => null)
         throw new Error(payload?.error || "認証に失敗しました")
       }
-      login()
+      await login(personId)
       router.push("/talisman")
     } catch (err) {
       const message = err instanceof Error ? err.message : "認証に失敗しました"

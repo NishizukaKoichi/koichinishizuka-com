@@ -109,9 +109,9 @@ export function EpochOrgDashboard({ orgId }: EpochOrgDashboardProps) {
       setError(null)
       try {
         const [orgRes, membersRes, activityRes] = await Promise.all([
-          fetch(`/api/epoch/orgs/${orgId}`, { headers: { "x-user-id": userId } }),
-          fetch(`/api/epoch/orgs/${orgId}/members`, { headers: { "x-user-id": userId } }),
-          fetch(`/api/epoch/orgs/${orgId}/activity`, { headers: { "x-user-id": userId } }),
+          fetch(`/api/epoch/orgs/${orgId}`, { headers: undefined }),
+          fetch(`/api/epoch/orgs/${orgId}/members`, { headers: undefined }),
+          fetch(`/api/epoch/orgs/${orgId}/activity`, { headers: undefined }),
         ])
 
         if (!orgRes.ok) {

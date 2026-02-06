@@ -71,7 +71,7 @@ export default function SigilExploreDetailPage() {
       setError(null)
       try {
         const readerRes = await fetch(`/api/v1/sigil/reader/${spaceId}`, {
-          headers: userId ? { "x-user-id": userId } : undefined,
+          headers: undefined,
         })
         if (!readerRes.ok) {
           throw new Error("術式の取得に失敗しました")
@@ -81,7 +81,7 @@ export default function SigilExploreDetailPage() {
         let analyticsData: Analytics | null = null
         if (userId) {
           const analyticsRes = await fetch(`/api/v1/sigil/analytics/${spaceId}`, {
-            headers: { "x-user-id": userId },
+            headers: undefined,
           })
           if (analyticsRes.ok) {
             const analyticsJson = (await analyticsRes.json()) as { analytics: Analytics }
@@ -122,7 +122,7 @@ export default function SigilExploreDetailPage() {
     try {
       const res = await fetch(`/api/v1/sigil/spaces/${spaceId}/adopt`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-id": userId },
+        headers: { "Content-Type": "application/json", },
         body: JSON.stringify({ status: "accepted" }),
       })
       if (!res.ok) {

@@ -27,7 +27,7 @@ export function EpochSilenceSettings() {
       setError(null)
       try {
         const response = await fetch("/api/epoch/settings/silence", {
-          headers: { "x-user-id": userId },
+          headers: undefined,
         })
         if (!response.ok) {
           const payload = await response.json().catch(() => null)
@@ -70,8 +70,7 @@ export function EpochSilenceSettings() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-user-id": userId,
-        },
+          },
         body: JSON.stringify({ days, autoGenerate: enabled }),
       })
       if (!response.ok) {

@@ -68,7 +68,7 @@ export default function SigilAdoptedPage() {
       setError(null)
       try {
         const res = await fetch("/api/v1/sigil/adoptions", {
-          headers: { "x-user-id": userId },
+          headers: undefined,
         })
         if (!res.ok) {
           throw new Error("採用術式の取得に失敗しました")
@@ -82,7 +82,7 @@ export default function SigilAdoptedPage() {
             let chapterCount = 0
             try {
               const readerRes = await fetch(`/api/v1/sigil/reader/${adoption.spaceId}`, {
-                headers: { "x-user-id": userId },
+                headers: undefined,
               })
               if (readerRes.ok) {
                 const readerData = (await readerRes.json()) as { space: Space; chapters: unknown[] }
@@ -131,7 +131,7 @@ export default function SigilAdoptedPage() {
     try {
       const res = await fetch(`/api/v1/sigil/spaces/${spaceId}/adopt`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-id": userId },
+        headers: { "Content-Type": "application/json", },
         body: JSON.stringify({ status: "declined" }),
       })
       if (!res.ok) {

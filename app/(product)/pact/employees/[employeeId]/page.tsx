@@ -106,7 +106,7 @@ export default function EmployeeDetailPage() {
       setLoading(true)
       setError(null)
       try {
-        const headers = { "x-user-id": userId }
+        const headers = { }
         const [employeeRes, ledgerRes, transitionRes] = await Promise.all([
           fetch(`/api/v1/pact/employees/${employeeId}`, { headers }),
           fetch(`/api/v1/pact/ledger?employee_id=${encodeURIComponent(employeeId)}`, { headers }),

@@ -54,7 +54,7 @@ export default function EditSpacePage() {
       setError(null)
       try {
         const spaceRes = await fetch(`/api/v1/sigil/spaces/${spaceId}`, {
-          headers: { "x-user-id": userId },
+          headers: undefined,
         })
         if (!spaceRes.ok) {
           throw new Error("スペースの取得に失敗しました")
@@ -62,7 +62,7 @@ export default function EditSpacePage() {
         const spaceData = (await spaceRes.json()) as { space: Space }
 
         const readerRes = await fetch(`/api/v1/sigil/reader/${spaceId}`, {
-          headers: { "x-user-id": userId },
+          headers: undefined,
         })
         const readerData = readerRes.ok
           ? ((await readerRes.json()) as { chapters: Chapter[] })
@@ -101,7 +101,7 @@ export default function EditSpacePage() {
       if (isNewSpace) {
         const res = await fetch("/api/v1/sigil/spaces", {
           method: "POST",
-          headers: { "Content-Type": "application/json", "x-user-id": userId },
+          headers: { "Content-Type": "application/json", },
           body: JSON.stringify({ title: name, purpose, visibility }),
         })
         if (!res.ok) {
@@ -112,7 +112,7 @@ export default function EditSpacePage() {
       } else {
         const res = await fetch(`/api/v1/sigil/spaces/${spaceId}/revisions`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", "x-user-id": userId },
+          headers: { "Content-Type": "application/json", },
           body: JSON.stringify({ title: name, purpose }),
         })
         if (!res.ok) {
@@ -134,7 +134,7 @@ export default function EditSpacePage() {
     try {
       const res = await fetch("/api/v1/sigil/chapters", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-id": userId },
+        headers: { "Content-Type": "application/json", },
         body: JSON.stringify({
           space_id: spaceId,
           order_index: chapters.length + 1,

@@ -105,7 +105,7 @@ export default function GenerateReportPage() {
       setLoading(true)
       setError(null)
       try {
-        const headers = { "x-user-id": userId }
+        const headers = { }
         const [employeesRes, transitionsRes] = await Promise.all([
           fetch("/api/v1/pact/employees", { headers }),
           fetch("/api/v1/pact/transitions", { headers }),
@@ -183,7 +183,7 @@ export default function GenerateReportPage() {
     if (!selectedEmployee || !periodStart || !periodEnd) return
     setGenerating(true)
     try {
-      const headers = { "Content-Type": "application/json", "x-user-id": userId ?? "" }
+      const headers = { "Content-Type": "application/json", }
       const res = await fetch("/api/v1/pact/reports/generate", {
         method: "POST",
         headers,

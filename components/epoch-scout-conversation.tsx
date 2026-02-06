@@ -66,7 +66,7 @@ export function EpochScoutConversation({ conversationId, isInitiator = false }: 
       setError(null)
       try {
         const response = await fetch(`/api/epoch/scouts/${conversationId}`, {
-          headers: { "x-user-id": userId },
+          headers: undefined,
         })
         if (!response.ok) {
           const payload = await response.json().catch(() => null)
@@ -100,8 +100,7 @@ export function EpochScoutConversation({ conversationId, isInitiator = false }: 
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-user-id": userId,
-        },
+          },
         body: JSON.stringify({ content: newMessage.trim() }),
       })
       if (!response.ok) {
@@ -127,9 +126,7 @@ export function EpochScoutConversation({ conversationId, isInitiator = false }: 
     try {
       const response = await fetch(`/api/epoch/scouts/${conversation.id}/complete`, {
         method: "POST",
-        headers: {
-          "x-user-id": userId,
-        },
+        headers: undefined,
       })
       if (!response.ok) {
         const payload = await response.json().catch(() => null)
@@ -151,9 +148,7 @@ export function EpochScoutConversation({ conversationId, isInitiator = false }: 
     try {
       const response = await fetch(`/api/epoch/scouts/${conversation.id}/withdraw`, {
         method: "POST",
-        headers: {
-          "x-user-id": userId,
-        },
+        headers: undefined,
       })
       if (!response.ok) {
         const payload = await response.json().catch(() => null)

@@ -121,7 +121,7 @@ export function EpochScoutSettings() {
       setError(null)
       try {
         const response = await fetch("/api/epoch/settings/scout", {
-          headers: { "x-user-id": userId },
+          headers: undefined,
         })
         if (!response.ok) {
           const payload = await response.json().catch(() => null)
@@ -154,8 +154,7 @@ export function EpochScoutSettings() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-user-id": userId,
-        },
+          },
         body: JSON.stringify(settings),
       })
       if (!response.ok) {

@@ -41,10 +41,10 @@ async function getIdentityFromCookies(): Promise<AuthIdentity | null> {
   const cookieStore = await cookies();
 
   const explicitUserId =
-    normalize(cookieStore.get("x-user-id")?.value) ?? normalize(cookieStore.get("user_id")?.value);
+    normalize(cookieStore.get("user_id")?.value);
   if (explicitUserId) {
     const explicitEmail =
-      normalize(cookieStore.get("x-user-email")?.value) ?? normalize(cookieStore.get("user_email")?.value);
+      normalize(cookieStore.get("user_email")?.value);
     return { userId: explicitUserId, email: explicitEmail };
   }
 

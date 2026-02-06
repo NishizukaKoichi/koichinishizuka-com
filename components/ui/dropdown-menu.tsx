@@ -94,7 +94,8 @@ export function DropdownMenuContent({ className, align = "end", ...props }: Reac
   return (
     <div
       className={cn(
-        "absolute top-full z-50 mt-2 min-w-[8rem] rounded-md border border-border bg-card p-1 shadow-lg",
+        // Keep menus usable on small viewports (avoid clipping hidden items).
+        "absolute top-full z-50 mt-2 min-w-[8rem] max-h-[70vh] overflow-y-auto overflow-x-hidden overscroll-contain rounded-md border border-border bg-card p-1 shadow-lg",
         alignClass,
         className,
       )}

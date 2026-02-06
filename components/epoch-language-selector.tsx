@@ -14,7 +14,7 @@ export function EpochLanguageSelector() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground gap-1.5">
           <Globe className="h-4 w-4" />
-          <span className="text-xs">{localeNames[locale]}</span>
+          <span className="text-xs hidden sm:inline">{localeNames[locale]}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="max-h-80 overflow-y-auto">

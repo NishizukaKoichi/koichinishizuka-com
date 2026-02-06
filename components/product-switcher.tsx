@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { ChevronDown, Clock, FileSignature, Shield, Sparkles, Wand2 } from "@/components/icons"
+import { ChevronDown, Clock, FileSignature, Grid, Shield, Sparkles, Wand2 } from "@/components/icons"
 import { useAuth } from "@/lib/auth/context"
 import { useI18n } from "@/lib/i18n/context"
 
@@ -88,7 +88,8 @@ export function ProductSwitcher() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors outline-none">
-        <span>{t("switcher.products")}</span>
+        <Grid className="h-4 w-4" />
+        <span className="hidden sm:inline">{t("switcher.products")}</span>
         <ChevronDown className="h-3 w-3" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56 bg-card border-border">

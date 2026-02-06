@@ -71,17 +71,14 @@ export function SiteHeader() {
           ))}
         </nav>
 
-        <div className="hidden md:flex items-center gap-3">
+        {/* Language + Products + Mobile menu */}
+        <div className="flex items-center gap-2">
           <EpochLanguageSelector />
           <ProductSwitcher />
-        </div>
-
-        {/* Mobile menu button */}
-        <div className="flex items-center gap-2 md:hidden">
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className="h-8 w-8 md:hidden"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
           >

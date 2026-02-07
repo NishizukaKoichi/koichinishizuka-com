@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 export default function LoginPage() {
+  const spellViaTalisman = "/talisman/login?next=%2Fspell";
   return (
     <div className="mx-auto max-w-2xl space-y-6 px-4 py-16">
       <div className="space-y-2">
@@ -18,10 +19,10 @@ export default function LoginPage() {
           Talisman Login
         </Link>
         <Link
-          href="/spell/login"
+          href={spellViaTalisman}
           className="rounded border border-border px-4 py-3 text-sm hover:bg-muted"
         >
-          Spell Login
+          Spell (via Talisman)
         </Link>
       </div>
     </div>

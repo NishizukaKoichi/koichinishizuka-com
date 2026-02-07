@@ -89,10 +89,10 @@ export function ProductSwitcher() {
     <DropdownMenu>
       <DropdownMenuTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors outline-none">
         <Grid className="h-4 w-4" />
-        <span className="hidden sm:inline">{t("switcher.products")}</span>
+        <span>{t("switcher.products")}</span>
         <ChevronDown className="h-3 w-3" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56 bg-card border-border">
+      <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">
           Koichinishizuka.com
         </DropdownMenuLabel>

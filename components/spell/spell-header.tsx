@@ -19,10 +19,10 @@ import { cn } from "@/lib/utils"
 
 const navItems = [
   { href: "/spell", icon: LayoutDashboard, labelKey: "spell.dashboard" },
-  { href: "/spell/spells", icon: Sparkles, label: "Spells" },
+  { href: "/spell/spells", icon: Sparkles, labelKey: "spell.products" },
   { href: "/spell/entitlements", icon: Shield, labelKey: "spell.entitlements" },
   { href: "/spell/audit", icon: FileText, labelKey: "spell.audit" },
-  { href: "/spell/integration", icon: Code, label: "統合" },
+  { href: "/spell/integration", icon: Code, labelKey: "spell.integration" },
   { href: "/spell/settings", icon: Settings, labelKey: "spell.settings" },
 ]
 
@@ -40,6 +40,7 @@ export function SpellHeader() {
   const router = useRouter()
 
   const isLandingPage = pathname === "/spell/landing"
+  const talismanLoginHref = `/talisman/login?next=${encodeURIComponent(pathname)}`
   
   if (isLandingPage) {
     return null
@@ -80,7 +81,7 @@ export function SpellHeader() {
               </Button>
             </Link>
           ) : (
-            <Link href="/talisman/landing">
+            <Link href={talismanLoginHref}>
               <Button variant="outline" size="sm" className="text-sm bg-transparent">
                 {t("header.login")}
               </Button>

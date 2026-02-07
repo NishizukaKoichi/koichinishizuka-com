@@ -88,6 +88,7 @@ const problems = [
 export function SpellLanding() {
   const { t, language } = useI18n()
   const router = useRouter()
+  const talismanLoginHref = "/talisman/login?next=%2Fspell"
 
   return (
     <div className="min-h-screen bg-background">
@@ -109,7 +110,7 @@ export function SpellLanding() {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <Link href="/spell/login">
+            <Link href={talismanLoginHref}>
               <Button variant="outline" size="sm" className="bg-transparent">
                 {t("spell.landing.login_btn")}
               </Button>
@@ -644,7 +645,7 @@ await runMyExpensiveOperation()`}</code>
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
-            <Link href="/spell/login">
+            <Link href={talismanLoginHref}>
               <Button
                 size="lg"
                 variant="outline"
